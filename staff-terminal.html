@@ -1,0 +1,367 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>EnrollEase - Staff Queue Terminal</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body style="background: var(--bg); padding: 24px;">
+  <div style="max-width: 1240px; margin: 0 auto;">
+    
+    <!-- Demo Switcher Top Bar -->
+    <div class="demo-bar">
+      <div class="demo-bar-left">
+        <span class="demo-bar-label">⚡ Live Defense Switcher:</span>
+        <a href="dashboard.html" class="demo-pill">🎓 Student Portal</a>
+        <a href="staff-terminal.html" class="demo-pill active">🖥️ Staff Terminal</a>
+        <a href="erp-simulator.html" class="demo-pill">🗄️ SIS/ERP Simulator</a>
+      </div>
+      <div class="demo-bar-left">
+        <span class="demo-sync-badge">
+          <span class="pulse-dot"></span>
+          Realtime Queue Engine Active
+        </span>
+      </div>
+    </div>
+
+    <!-- Header -->
+    <div class="row sp" style="margin-bottom: 24px;">
+      <div>
+        <div class="logo">Enroll<span>Ease</span> <span style="font-size: 16px; font-weight: 600; color: var(--mu);">| Staff Queue Controller</span></div>
+        <p class="muted" style="margin: 4px 0 0;">Manage live counter queues, call student tickets, and advance enrollment stages.</p>
+      </div>
+      <div class="row">
+        <label style="margin: 0;">Counter Window:</label>
+        <select id="selWindow" style="width: auto; min-width: 240px; font-weight: 700;">
+          <option value="Window 1 - IT Advising">Window 1 - IT Advising (Step 2)</option>
+          <option value="Window 2 - Registrar">Window 2 - Registrar (Step 3)</option>
+          <option value="Window 3 - Cashier">Window 3 - Cashier / UniFAST (Step 4)</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- Main Grid -->
+    <div class="terminal-grid">
+      
+      <!-- Left: Counter Spotlight & Controls -->
+      <div>
+        <div class="terminal-now-serving">
+          <h2>NOW SERVING AT THIS COUNTER</h2>
+          <div class="terminal-ticket-huge" id="txtServingTicket">---</div>
+          <div style="font-size: 20px; font-weight: 700;" id="txtServingName">No Student Called</div>
+          <div style="color: #bfdbfe; font-size: 13px; margin-top: 4px;" id="txtServingInfo">Counter is idle</div>
+          <div style="margin-top: 12px;">
+            <span class="badge w" id="txtServingType" style="display: none;">Booked Appointment</span>
+          </div>
+        </div>
+
+        <div class="terminal-panel">
+          <h3>Counter Action Controls</h3>
+          <p class="muted" style="margin-bottom: 16px;">Operate counter queue with automatic chime announcements</p>
+
+          <div style="display: flex; flex-direction: column; gap: 10px;">
+            <button class="btn lg success" id="btnCallNext" style="font-size: 16px;">
+              📢 Call Next Ticket
+            </button>
+            <button class="btn alt" id="btnRecall">
+              🔔 Recall Current Ticket (Play Chime)
+            </button>
+            <button class="btn" id="btnCompleteAdvance">
+              ✅ Complete Step & Unlock Next Stage
+            </button>
+            <button class="btn warning" id="btnPutHold">
+              ⏸️ Put Ticket on Hold
+            </button>
+          </div>
+
+          <div style="margin-top: 24px; padding-top: 16px; border-top: 1px solid var(--ln);">
+            <h4>➕ Issue Quick Walk-In Ticket</h4>
+            <div style="display: flex; gap: 8px; margin-top: 8px;">
+              <input type="text" id="walkinName" placeholder="Student Full Name" style="flex: 2;">
+              <button class="btn alt sm" id="btnIssueWalkin">Issue Ticket</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Right: Queue Table -->
+      <div class="terminal-panel">
+        <div class="row sp" style="margin-bottom: 16px;">
+          <div>
+            <h3>Live Queue Roster</h3>
+            <p class="muted" style="margin: 2px 0 0;">Priority order: Booked Appointments first, then Walk-Ins</p>
+          </div>
+          <span class="badge p" id="txtQueueCount">0 Waiting</span>
+        </div>
+
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Ticket #</th>
+              <th>Student Name</th>
+              <th>Priority Lane</th>
+              <th>Window</th>
+              <th>Est. Wait</th>
+              <th>Status</th>
+              <th>Action</th>
+            </tr>
+          </thead>
+          <tbody id="queueTbody">
+            <!-- Dynamically populated -->
+          </tbody>
+        </table>
+      </div>
+
+    </div>
+
+  </div>
+
+  <script src="js/config.js"></script>
+  <script>
+    (function() {
+      const $ = s => document.querySelector(s);
+      const $$ = s => document.querySelectorAll(s);
+
+      function getQueue() {
+        try {
+          return JSON.parse(localStorage.getItem('ee_queue')) || [];
+        } catch (e) {
+          return [];
+        }
+      }
+
+      function setQueue(q) {
+        localStorage.setItem('ee_queue', JSON.stringify(q));
+        if (window.eeBroadcast) {
+          window.eeBroadcast.postMessage({ type: 'SYNC_QUEUE', payload: q });
+        }
+      }
+
+      function getProgress() {
+        try {
+          return JSON.parse(localStorage.getItem('ee_progress')) || [];
+        } catch (e) {
+          return [];
+        }
+      }
+
+      function setProgress(p) {
+        localStorage.setItem('ee_progress', JSON.stringify(p));
+        if (window.eeBroadcast) {
+          window.eeBroadcast.postMessage({ type: 'SYNC_PROGRESS', payload: p });
+        }
+      }
+
+      const selWindow = $('#selWindow');
+
+      function renderTerminal() {
+        const currentWindow = selWindow.value;
+        const allQueue = getQueue();
+        const windowQueue = allQueue.filter(q => q.counter_window.includes(currentWindow.split(' - ')[0]) || q.counter_window === currentWindow);
+
+        // Serving ticket
+        const serving = windowQueue.find(q => q.status === 'Serving');
+        if (serving) {
+          $('#txtServingTicket').textContent = serving.ticket_number;
+          $('#txtServingName').textContent = serving.student_name;
+          $('#txtServingInfo').textContent = `Student ID: ${serving.student_id} • ${serving.counter_window}`;
+          $('#txtServingType').style.display = 'inline-block';
+          $('#txtServingType').textContent = serving.priority_type;
+        } else {
+          $('#txtServingTicket').textContent = '---';
+          $('#txtServingName').textContent = 'No Student Serving';
+          $('#txtServingInfo').textContent = 'Counter is currently idle. Click "Call Next Ticket" below.';
+          $('#txtServingType').style.display = 'none';
+        }
+
+        // Waiting queue
+        const waiting = windowQueue.filter(q => q.status === 'Waiting');
+        $('#txtQueueCount').textContent = `${waiting.length} Waiting`;
+
+        // Render table
+        const tbody = $('#queueTbody');
+        if (windowQueue.length === 0) {
+          tbody.innerHTML = `<tr><td colspan="7" class="center muted" style="padding: 24px;">No tickets in queue for this window.</td></tr>`;
+          return;
+        }
+
+        tbody.innerHTML = windowQueue.map(item => `
+          <tr style="${item.status === 'Serving' ? 'background: rgba(59, 130, 246, 0.1); font-weight: 600;' : ''}">
+            <td><b>${item.ticket_number}</b></td>
+            <td>${item.student_name}</td>
+            <td>
+              <span class="badge ${item.priority_type.includes('Booked') ? 'p' : 'g'}">
+                ${item.priority_type}
+              </span>
+            </td>
+            <td class="muted">${item.counter_window}</td>
+            <td>${item.estimated_wait_mins}m</td>
+            <td>
+              <span class="badge ${item.status === 'Serving' ? 'w' : item.status === 'Hold' ? 'd' : ''}">
+                ${item.status}
+              </span>
+            </td>
+            <td>
+              ${item.status === 'Waiting' ? `
+                <button class="btn sm alt btnCallSpecific" data-id="${item.queue_id}">Call Now</button>
+              ` : item.status === 'Serving' ? `
+                <span class="ok" style="font-size: 12px;">Active</span>
+              ` : `
+                <button class="btn sm alt btnCallSpecific" data-id="${item.queue_id}">Recall</button>
+              `}
+            </td>
+          </tr>
+        `).join('');
+
+        $$('.btnCallSpecific').forEach(btn => {
+          btn.onclick = () => {
+            callSpecificTicket(btn.dataset.id);
+          };
+        });
+      }
+
+      function callSpecificTicket(queueId) {
+        const queue = getQueue();
+        const currentWindow = selWindow.value;
+        // Reset currently serving to completed or waiting
+        queue.forEach(q => {
+          if (q.counter_window.includes(currentWindow.split(' - ')[0]) && q.status === 'Serving') {
+            q.status = 'Completed';
+          }
+        });
+        const target = queue.find(q => q.queue_id === queueId);
+        if (target) {
+          target.status = 'Serving';
+          target.counter_window = currentWindow;
+          setQueue(queue);
+          window.playQueueChime();
+          renderTerminal();
+        }
+      }
+
+      // Call Next
+      $('#btnCallNext').onclick = () => {
+        const currentWindow = selWindow.value;
+        const queue = getQueue();
+        // Mark current serving as completed
+        queue.forEach(q => {
+          if (q.counter_window.includes(currentWindow.split(' - ')[0]) && q.status === 'Serving') {
+            q.status = 'Completed';
+          }
+        });
+
+        // Find next waiting (sorted: booked first)
+        const next = queue
+          .filter(q => q.status === 'Waiting' && (q.counter_window.includes(currentWindow.split(' - ')[0]) || q.counter_window === currentWindow))
+          .sort((a, b) => {
+            if (a.priority_type.includes('Booked') && !b.priority_type.includes('Booked')) return -1;
+            if (!a.priority_type.includes('Booked') && b.priority_type.includes('Booked')) return 1;
+            return 0;
+          })[0];
+
+        if (next) {
+          next.status = 'Serving';
+          next.counter_window = currentWindow;
+          setQueue(queue);
+          window.playQueueChime();
+          renderTerminal();
+        } else {
+          alert('No more students waiting in queue for ' + currentWindow);
+        }
+      };
+
+      // Recall
+      $('#btnRecall').onclick = () => {
+        window.playQueueChime();
+        const ticketEl = $('#txtServingTicket');
+        ticketEl.style.transform = 'scale(1.15)';
+        ticketEl.style.transition = 'transform 0.2s';
+        setTimeout(() => ticketEl.style.transform = 'scale(1)', 250);
+      };
+
+      // Complete & Advance Student
+      $('#btnCompleteAdvance').onclick = () => {
+        const currentWindow = selWindow.value;
+        const queue = getQueue();
+        const serving = queue.find(q => q.counter_window.includes(currentWindow.split(' - ')[0]) && q.status === 'Serving');
+        if (!serving) {
+          alert('No student is currently serving at this window.');
+          return;
+        }
+
+        serving.status = 'Completed';
+        setQueue(queue);
+
+        // Advance student progress
+        const stepNum = currentWindow.includes('Advising') ? 2 : currentWindow.includes('Registrar') ? 3 : 4;
+        const nextStep = stepNum + 1;
+        const progress = getProgress();
+
+        let currProg = progress.find(p => p.student_id === serving.student_id && p.step_number === stepNum);
+        let nxtProg = progress.find(p => p.student_id === serving.student_id && p.step_number === nextStep);
+
+        if (currProg) currProg.status = 'completed';
+        if (nxtProg && nxtProg.status === 'locked') nxtProg.status = 'ready_to_book';
+
+        setProgress(progress);
+        alert(`Step ${stepNum} marked COMPLETED for ${serving.student_name}! Step ${nextStep} is now UNLOCKED.`);
+        renderTerminal();
+      };
+
+      // Put on Hold
+      $('#btnPutHold').onclick = () => {
+        const currentWindow = selWindow.value;
+        const queue = getQueue();
+        const serving = queue.find(q => q.counter_window.includes(currentWindow.split(' - ')[0]) && q.status === 'Serving');
+        if (!serving) return;
+        serving.status = 'Hold';
+        setQueue(queue);
+        alert(`Ticket ${serving.ticket_number} placed on Hold.`);
+        renderTerminal();
+      };
+
+      // Issue Walkin
+      $('#btnIssueWalkin').onclick = () => {
+        const name = $('#walkinName').value.trim();
+        if (!name) return alert('Enter student name');
+        const currentWindow = selWindow.value;
+        const queue = getQueue();
+        const prefix = currentWindow.includes('Advising') ? 'ADV' : currentWindow.includes('Registrar') ? 'REG' : 'CSH';
+        const num = `${prefix}-${String(Math.floor(Math.random() * 80) + 20).padStart(3, '0')}`;
+
+        queue.push({
+          queue_id: 'q' + Date.now(),
+          ticket_number: num,
+          student_id: 'WALKIN-' + Date.now().toString().slice(-4),
+          student_name: name,
+          step_number: currentWindow.includes('Advising') ? 2 : 3,
+          counter_window: currentWindow,
+          priority_type: 'Regular Walk-In',
+          status: 'Waiting',
+          estimated_wait_mins: 15,
+          created_at: new Date().toISOString()
+        });
+
+        setQueue(queue);
+        $('#walkinName').value = '';
+        alert(`Issued Walk-In Ticket: ${num} for ${name}`);
+        renderTerminal();
+      };
+
+      selWindow.onchange = renderTerminal;
+
+      // Realtime listener
+      if (window.eeBroadcast) {
+        window.eeBroadcast.onmessage = e => {
+          if (e.data && e.data.type === 'SYNC_QUEUE') {
+            renderTerminal();
+          }
+        };
+      }
+
+      renderTerminal();
+    })();
+  </script>
+</body>
+</html>

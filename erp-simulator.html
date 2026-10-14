@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>EnrollEase - Campus SIS/ERP Simulator</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body style="background: var(--bg); padding: 24px;">
+  <div style="max-width: 1240px; margin: 0 auto;">
+    
+    <!-- Demo Switcher Top Bar -->
+    <div class="demo-bar">
+      <div class="demo-bar-left">
+        <span class="demo-bar-label">⚡ Live Defense Switcher:</span>
+        <a href="dashboard.html" class="demo-pill">🎓 Student Portal</a>
+        <a href="staff-terminal.html" class="demo-pill">🖥️ Staff Terminal</a>
+        <a href="erp-simulator.html" class="demo-pill active">🗄️ SIS/ERP Simulator</a>
+      </div>
+      <div class="demo-bar-left">
+        <span class="demo-sync-badge">
+          <span class="pulse-dot"></span>
+          Simulated ERP Bridge Online
+        </span>
+      </div>
+    </div>
+
+    <!-- Header -->
+    <div class="row sp" style="margin-bottom: 24px;">
+      <div>
+        <div class="logo">Enroll<span>Ease</span> <span style="font-size: 16px; font-weight: 600; color: var(--mu);">| Simulated Campus ERP / SIS</span></div>
+        <p class="muted" style="margin: 4px 0 0;">
+          Mock external University Student Information System (<code style="font-weight: 700;">erp_sis_*</code>). Toggle clearance holds or approve advising here to prove real-time synchronization with EnrollEase.
+        </p>
+      </div>
+      <div class="row">
+        <label style="margin: 0;">Target Student Record:</label>
+        <select id="selStudent" style="width: auto; min-width: 260px; font-weight: 700;">
+          <option value="2024-00101">👤 Juan Dela Cruz (2024-00101)</option>
+          <option value="2024-00102" selected>⚠️ Maria Santos (2024-00102 - Has Holds)</option>
+          <option value="2024-00103">🎓 Carlo Mendoza (2024-00103)</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- Grid Layout -->
+    <div style="display: grid; grid-template-columns: 1.6fr 1fr; gap: 24px;">
+      
+      <!-- Left Column: Clearances & Curriculum Controls -->
+      <div>
+        
+        <!-- Office Clearances Switchboard -->
+        <div class="card" style="margin-bottom: 24px;">
+          <div class="row sp" style="margin-bottom: 14px;">
+            <div>
+              <h3>🏛️ Campus Clearance Switchboard (<code>erp_sis_clearances</code>)</h3>
+              <p class="muted" style="margin: 0;">Flip office statuses between Cleared and Hold to test real-time lock/unlock in EnrollEase</p>
+            </div>
+            <button class="btn sm success" id="btnQuickClearAll">Clear All Holds</button>
+          </div>
+
+          <div id="clearanceRows" style="display: flex; flex-direction: column; gap: 12px;">
+            <!-- Dynamically populated -->
+          </div>
+        </div>
+
+        <!-- Curriculum Advising Controls -->
+        <div class="card">
+          <div class="row sp" style="margin-bottom: 14px;">
+            <div>
+              <h3>📚 Curriculum Advising & Loading (<code>erp_sis_curriculum_subjects</code>)</h3>
+              <p class="muted" style="margin: 0;">Approve subject loading including <b>PC 316</b></p>
+            </div>
+          </div>
+
+          <div id="subjectRows" style="display: flex; flex-direction: column; gap: 10px;">
+            <!-- Dynamically populated -->
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Right Column: Student Status & Live Audit Stream -->
+      <div>
+        
+        <!-- Student Record Card -->
+        <div class="card" style="margin-bottom: 24px;">
+          <h3>📋 Student Master Record (<code>erp_sis_students</code>)</h3>
+          
+          <dl style="margin: 16px 0;">
+            <dt>Student ID:</dt>
+            <dd id="txtSid">---</dd>
+            <dt>Full Name:</dt>
+            <dd id="txtName">---</dd>
+            <dt>Program:</dt>
+            <dd id="txtProg">---</dd>
+            <dt>Tuition Status:</dt>
+            <dd id="txtTuition">---</dd>
+            <dt>ERP Status:</dt>
+            <dd id="txtErpStatus">---</dd>
+          </dl>
+
+          <label>Update Tuition Subsidy Status</label>
+          <select id="selTuitionStatus">
+            <option value="Cleared / UniFAST">Cleared / UniFAST (Free Higher Education)</option>
+            <option value="With Balance">With Balance (₱1,250.00 Lab Fees)</option>
+            <option value="Pending Assessment">Pending Assessment</option>
+          </select>
+
+          <button class="btn sm alt" id="btnUpdateTuition" style="margin-top: 10px; width: 100%;">
+            Update Tuition Status in ERP
+          </button>
+        </div>
+
+        <!-- Real-Time Audit Console -->
+        <div class="card" style="background: #0f172a; color: #f8fafc; font-family: monospace; font-size: 12px;">
+          <div class="row sp" style="margin-bottom: 10px; border-bottom: 1px solid #334155; padding-bottom: 8px;">
+            <span style="color: #4ade80; font-weight: 700;">📡 Live ERP Event Log</span>
+            <span class="muted" style="color: #94a3b8;">RPC: sync_student_erp_status()</span>
+          </div>
+          <div id="auditLog" style="height: 240px; overflow-y: auto; display: flex; flex-direction: column; gap: 6px;">
+            <div style="color: #94a3b8;">[System Ready] Listening to Supabase & Realtime Broadcast Mesh...</div>
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+
+  </div>
+
+  <script src="js/config.js"></script>
+  <script>
+    (function() {
+      const $ = s => document.querySelector(s);
+      const $$ = s => document.querySelectorAll(s);
+
+      function logEvent(msg) {
+        const log = $('#auditLog');
+        const time = new Date().toLocaleTimeString();
+        const line = document.createElement('div');
+        line.innerHTML = `<span style="color: #60a5fa;">[${time}]</span> ${msg}`;
+        log.prepend(line);
+      }
+
+      function getStudents() {
+        try { return JSON.parse(localStorage.getItem('ee_students')) || []; } catch(e) { return []; }
+      }
+      function setStudents(s) {
+        localStorage.setItem('ee_students', JSON.stringify(s));
+        if (window.eeBroadcast) window.eeBroadcast.postMessage({ type: 'SYNC_STUDENTS', payload: s });
+      }
+
+      function getClearances() {
+        try { return JSON.parse(localStorage.getItem('ee_clearances')) || []; } catch(e) { return []; }
+      }
+      function setClearances(c) {
+        localStorage.setItem('ee_clearances', JSON.stringify(c));
+        if (window.eeBroadcast) window.eeBroadcast.postMessage({ type: 'SYNC_CLEARANCES', payload: c });
+      }
+
+      function getSubjects() {
+        try { return JSON.parse(localStorage.getItem('ee_subjects')) || []; } catch(e) { return []; }
+      }
+      function setSubjects(sub) {
+        localStorage.setItem('ee_subjects', JSON.stringify(sub));
+        if (window.eeBroadcast) window.eeBroadcast.postMessage({ type: 'SYNC_SUBJECTS', payload: sub });
+      }
+
+      function getProgress() {
+        try { return JSON.parse(localStorage.getItem('ee_progress')) || []; } catch(e) { return []; }
+      }
+      function setProgress(p) {
+        localStorage.setItem('ee_progress', JSON.stringify(p));
+        if (window.eeBroadcast) window.eeBroadcast.postMessage({ type: 'SYNC_PROGRESS', payload: p });
+      }
+
+      // Simulated RPC sync_student_erp_status(p_student_id)
+      function triggerRpcSync(sid) {
+        const clearances = getClearances().filter(c => c.student_id === sid);
+        const hasHold = clearances.some(c => c.status === 'Hold');
+        const progress = getProgress();
+
+        let p1 = progress.find(p => p.student_id === sid && p.step_number === 1);
+        let p2 = progress.find(p => p.student_id === sid && p.step_number === 2);
+
+        const students = getStudents();
+        const student = students.find(s => s.student_id === sid);
+
+        if (hasHold) {
+          if (p1) p1.status = 'action_required';
+          if (p2) p2.status = 'locked';
+          if (student) student.erp_enrollment_status = 'Clearance Hold';
+          logEvent(`⚡ RPC sync_student_erp_status('${sid}'): <span style="color:#ef4444;">Holds Detected! Locked Step 2.</span>`);
+        } else {
+          if (p1) p1.status = 'completed';
+          if (p2 && p2.status === 'locked') p2.status = 'ready_to_book';
+          if (student && student.erp_enrollment_status === 'Clearance Hold') {
+            student.erp_enrollment_status = 'Eligible for Enrollment';
+          }
+          logEvent(`⚡ RPC sync_student_erp_status('${sid}'): <span style="color:#4ade80;">All Clear! Unlocked Step 1 & Step 2.</span>`);
+        }
+
+        setStudents(students);
+        setProgress(progress);
+      }
+
+      const selStudent = $('#selStudent');
+
+      function renderSimulator() {
+        const sid = selStudent.value;
+        const students = getStudents();
+        const student = students.find(s => s.student_id === sid) || students[0];
+
+        // Header info
+        $('#txtSid').textContent = student.student_id;
+        $('#txtName').textContent = student.full_name;
+        $('#txtProg').textContent = `${student.program} (${student.section})`;
+        $('#txtTuition').textContent = student.tuition_status;
+        $('#txtErpStatus').textContent = student.erp_enrollment_status;
+        $('#selTuitionStatus').value = student.tuition_status.includes('UniFAST') ? 'Cleared / UniFAST' : student.tuition_status;
+
+        // Clearances
+        const clearances = getClearances().filter(c => c.student_id === sid);
+        const clearanceBox = $('#clearanceRows');
+        clearanceBox.innerHTML = clearances.map(c => `
+          <div style="background: var(--bg); padding: 14px; border-radius: 12px; border: 1px solid var(--ln); display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+            <div>
+              <b>${c.office_name}</b> <span class="muted" style="font-size: 12px;">(${c.location_room})</span>
+              <div class="muted" style="font-size: 12px; margin-top: 2px;">Remarks: <i>${c.remarks || 'None'}</i></div>
+            </div>
+            <div class="row">
+              <span class="badge ${c.status === 'Cleared' ? '' : 'd'}">${c.status}</span>
+              <button class="btn sm ${c.status === 'Cleared' ? 'danger' : 'success'} btnToggleClearance" data-office="${c.office_code}">
+                ${c.status === 'Cleared' ? 'Mark Hold' : 'Mark Cleared'}
+              </button>
+            </div>
+          </div>
+        `).join('');
+
+        $$('.btnToggleClearance').forEach(btn => {
+          btn.onclick = () => {
+            const office = btn.dataset.office;
+            const allClearances = getClearances();
+            const target = allClearances.find(c => c.student_id === sid && c.office_code === office);
+            if (target) {
+              target.status = target.status === 'Cleared' ? 'Hold' : 'Cleared';
+              if (target.status === 'Cleared') target.remarks = 'Cleared via ERP Simulator.';
+              setClearances(allClearances);
+              triggerRpcSync(sid);
+              renderSimulator();
+            }
+          };
+        });
+
+        // Subjects
+        const subjects = getSubjects().filter(s => s.student_id === sid);
+        const subBox = $('#subjectRows');
+        subBox.innerHTML = subjects.map(s => `
+          <div style="background: var(--bg); padding: 12px 14px; border-radius: 10px; border: 1px solid var(--ln); display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
+            <div>
+              <b>${s.subject_code}</b> - ${s.descriptive_title}
+              <div class="muted" style="font-size: 11px;">${s.schedule_block} • ${s.units} units</div>
+            </div>
+            <div class="row">
+              <span class="badge ${s.is_advised ? '' : 'w'}">${s.is_advised ? '✓ Advised' : 'Pending'}</span>
+              <button class="btn sm alt btnToggleSubject" data-code="${s.subject_code}">
+                ${s.is_advised ? 'Revoke Advising' : 'Approve Advising'}
+              </button>
+            </div>
+          </div>
+        `).join('');
+
+        $$('.btnToggleSubject').forEach(btn => {
+          btn.onclick = () => {
+            const code = btn.dataset.code;
+            const allSub = getSubjects();
+            const target = allSub.find(s => s.student_id === sid && s.subject_code === code);
+            if (target) {
+              target.is_advised = !target.is_advised;
+              setSubjects(allSub);
+              logEvent(`Subject <b>${code}</b> set to: ${target.is_advised ? '<span style="color:#4ade80;">ADVISED</span>' : '<span style="color:#f59e0b;">PENDING</span>'}`);
+              renderSimulator();
+            }
+          };
+        });
+      }
+
+      $('#btnQuickClearAll').onclick = () => {
+        const sid = selStudent.value;
+        const allClearances = getClearances();
+        allClearances.forEach(c => {
+          if (c.student_id === sid) {
+            c.status = 'Cleared';
+            c.remarks = 'Cleared by Dean/Registrar via ERP';
+          }
+        });
+        setClearances(allClearances);
+        triggerRpcSync(sid);
+        renderSimulator();
+        alert('All clearance holds removed for student ' + sid + '! Check the Student Portal tab to observe the instant real-time update.');
+      };
+
+      $('#btnUpdateTuition').onclick = () => {
+        const sid = selStudent.value;
+        const val = $('#selTuitionStatus').value;
+        const students = getStudents();
+        const student = students.find(s => s.student_id === sid);
+        if (student) {
+          student.tuition_status = val;
+          setStudents(students);
+          logEvent(`Tuition status for ${sid} updated to <b>${val}</b>`);
+          renderSimulator();
+          alert('Tuition status updated in ERP!');
+        }
+      };
+
+      selStudent.onchange = () => {
+        logEvent(`Switched inspector to student record: <b>${selStudent.value}</b>`);
+        renderSimulator();
+      };
+
+      // Realtime listener
+      if (window.eeBroadcast) {
+        window.eeBroadcast.onmessage = e => {
+          if (e.data && e.data.type) {
+            logEvent(`Broadcast received: <span style="color:#a78bfa;">${e.data.type}</span>`);
+            renderSimulator();
+          }
+        };
+      }
+
+      renderSimulator();
+    })();
+  </script>
+</body>
+</html>
