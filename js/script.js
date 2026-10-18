@@ -375,7 +375,6 @@
       const { type } = event.data || {};
       if (type && type.startsWith('SYNC_')) {
         console.log('[Realtime Sync]', type);
-        // If current student ticket was called to Serving, trigger chime!
         if (type === 'SYNC_QUEUE') {
           const mySid = DAL.currentStudentId();
           const queue = DAL.get('queue');
@@ -385,7 +384,6 @@
             toast('🔔 Your Ticket ' + myTicket.ticket_number + ' is NOW SERVING at ' + myTicket.counter_window + '!');
           }
         }
-        // Re-render current page if active
         if (typeof renderCurrentPage === 'function') {
           renderCurrentPage();
         }
@@ -420,15 +418,6 @@
       el.style.transition = 'all 0.3s';
       setTimeout(() => el.remove(), 300);
     }, 3800);
-  }
-
-  function modal(html) {
-    const m = document.createElement('div');
-    m.className = 'modal';
-    m.innerHTML = `<div class="card">${html}</div>`;
-    m.onclick = e => { if (e.target === m) m.remove(); };
-    document.body.appendChild(m);
-    return m;
   }
 
   // --- DEMO BAR COMPONENT (Floating Top Banner for Live Defense) ---
@@ -1507,15 +1496,20 @@
             Configure your remote Supabase Project URL and Public Anon Key.
           </p>
 
-          <label>Supabase URL</label>
-          <input type="text" id="cfgUrl" value="${esc(config.supabaseUrl || '')}" placeholder="https://xyzcompany.supabase.co">
+          <label>Supabase Project URL</label>
+          <input type="text" id="cfgUrl" value="${esc(config.supabaseUrl || '')}" placeholder="https://xxxxxxxxxxxx.supabase.co">
 
-          <label>Supabase Anon Key</label>
+          <label>Supabase Public Anon Key</label>
           <input type="text" id="cfgKey" value="${esc(config.supabaseAnonKey || '')}" placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6...">
 
+          <div id="cfgStatusBox" style="margin-top: 14px; display: none;"></div>
+
           <div style="margin-top: 16px;" class="row sp">
-            <button class="btn" id="btnSaveConfig">Save Connection Config</button>
-            <button class="btn danger sm" id="btnResetData">Reset All Mock Data to Default</button>
+            <div class="row">
+              <button class="btn" id="btnSaveConfig">Save Config</button>
+              <button class="btn alt success" id="btnTestConn">⚡ Test Live Supabase</button>
+            </div>
+            <button class="btn danger sm" id="btnResetData">Reset Local Cache</button>
           </div>
         </div>
       `, 'settings');
@@ -1549,7 +1543,56 @@
         const k = $('#cfgKey').value.trim();
         localStorage.setItem('ee_supabase_url', u);
         localStorage.setItem('ee_supabase_anon_key', k);
+        window.ENROLLEASE_CONFIG.supabaseUrl = u;
+        window.ENROLLEASE_CONFIG.supabaseAnonKey = k;
+        if (window.supabase && u && k) {
+          window.supabaseClient = window.supabase.createClient(u, k);
+        }
         toast('Supabase credentials saved!');
+      };
+
+      $('#btnTestConn').onclick = async () => {
+        const u = $('#cfgUrl').value.trim();
+        const k = $('#cfgKey').value.trim();
+        const box = $('#cfgStatusBox');
+        box.style.display = 'block';
+        box.innerHTML = '<p class="muted" style="padding: 10px;">⏳ Connecting to Supabase project...</p>';
+
+        if (!u || !k) {
+          box.innerHTML = '<div style="background: #fee2e2; color: #991b1b; padding: 12px; border-radius: 8px; font-weight: 600;">⚠️ Please paste your Supabase Project URL and Public Anon Key first.</div>';
+          return;
+        }
+
+        localStorage.setItem('ee_supabase_url', u);
+        localStorage.setItem('ee_supabase_anon_key', k);
+        window.ENROLLEASE_CONFIG.supabaseUrl = u;
+        window.ENROLLEASE_CONFIG.supabaseAnonKey = k;
+
+        if (window.supabase) {
+          window.supabaseClient = window.supabase.createClient(u, k);
+        }
+
+        const res = await window.testSupabaseConnection();
+        if (res.success) {
+          box.innerHTML = `
+            <div style="background: #dcfce7; color: #166534; padding: 14px; border-radius: 10px; font-weight: 600;">
+              ✅ ${res.message}<br>
+              <span style="font-size: 12px; font-weight: normal; color: #14532d;">
+                Live tables verified! Students: ${res.students.map(s => s.full_name + ' (' + s.student_id + ')').join(', ')}
+              </span>
+            </div>
+          `;
+          toast('Supabase live connection verified!');
+        } else {
+          box.innerHTML = `
+            <div style="background: #fee2e2; color: #991b1b; padding: 14px; border-radius: 10px; font-weight: 600;">
+              ❌ ${res.message}<br>
+              <span style="font-size: 12px; font-weight: normal; color: #7f1d1d;">
+                Make sure you pasted and ran the SQL migration in Supabase SQL Editor.
+              </span>
+            </div>
+          `;
+        }
       };
 
       $('#btnResetData').onclick = () => {

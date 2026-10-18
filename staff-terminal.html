@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
@@ -12,10 +12,10 @@
     <!-- Demo Switcher Top Bar -->
     <div class="demo-bar">
       <div class="demo-bar-left">
-        <span class="demo-bar-label">⚡ Live Defense Switcher:</span>
-        <a href="dashboard.html" class="demo-pill">🎓 Student Portal</a>
-        <a href="staff-terminal.html" class="demo-pill active">🖥️ Staff Terminal</a>
-        <a href="erp-simulator.html" class="demo-pill">🗄️ SIS/ERP Simulator</a>
+        <span class="demo-bar-label">âš¡ Live Defense Switcher:</span>
+        <a href="dashboard.html" class="demo-pill">ðŸŽ“ Student Portal</a>
+        <a href="staff-terminal.html" class="demo-pill active">ðŸ–¥ï¸ Staff Terminal</a>
+        <a href="erp-simulator.html" class="demo-pill">ðŸ—„ï¸ SIS/ERP Simulator</a>
       </div>
       <div class="demo-bar-left">
         <span class="demo-sync-badge">
@@ -62,21 +62,21 @@
 
           <div style="display: flex; flex-direction: column; gap: 10px;">
             <button class="btn lg success" id="btnCallNext" style="font-size: 16px;">
-              📢 Call Next Ticket
+              ðŸ“¢ Call Next Ticket
             </button>
             <button class="btn alt" id="btnRecall">
-              🔔 Recall Current Ticket (Play Chime)
+              ðŸ”” Recall Current Ticket (Play Chime)
             </button>
             <button class="btn" id="btnCompleteAdvance">
-              ✅ Complete Step & Unlock Next Stage
+              âœ… Complete Step & Unlock Next Stage
             </button>
             <button class="btn warning" id="btnPutHold">
-              ⏸️ Put Ticket on Hold
+              â¸ï¸ Put Ticket on Hold
             </button>
           </div>
 
           <div style="margin-top: 24px; padding-top: 16px; border-top: 1px solid var(--ln);">
-            <h4>➕ Issue Quick Walk-In Ticket</h4>
+            <h4>âž• Issue Quick Walk-In Ticket</h4>
             <div style="display: flex; gap: 8px; margin-top: 8px;">
               <input type="text" id="walkinName" placeholder="Student Full Name" style="flex: 2;">
               <button class="btn alt sm" id="btnIssueWalkin">Issue Ticket</button>
@@ -117,7 +117,7 @@
 
   </div>
 
-  <script src="js/config.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script><script src="js/config.js"></script>
   <script>
     (function() {
       const $ = s => document.querySelector(s);
@@ -165,7 +165,7 @@
         if (serving) {
           $('#txtServingTicket').textContent = serving.ticket_number;
           $('#txtServingName').textContent = serving.student_name;
-          $('#txtServingInfo').textContent = `Student ID: ${serving.student_id} • ${serving.counter_window}`;
+          $('#txtServingInfo').textContent = `Student ID: ${serving.student_id} â€¢ ${serving.counter_window}`;
           $('#txtServingType').style.display = 'inline-block';
           $('#txtServingType').textContent = serving.priority_type;
         } else {
@@ -365,3 +365,4 @@
   </script>
 </body>
 </html>
+
