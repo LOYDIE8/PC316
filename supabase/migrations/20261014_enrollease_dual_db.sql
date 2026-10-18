@@ -2,6 +2,7 @@
 -- EnrollEase (PC316v2) - Dual-Database Domain Architecture Migration
 -- Domain 1: Simulated School ERP (erp_sis_*)
 -- Domain 2: EnrollEase Operational DB (enrollease_*)
+-- Student ID Format: 7 Digits (e.g. 8240873)
 -- ============================================================================
 
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
@@ -118,7 +119,7 @@ CREATE TABLE enrollease_appointments (
 CREATE TABLE enrollease_live_queue (
     queue_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     ticket_number TEXT NOT NULL,
-    student_id TEXT NOT NULL REFERENCES erp_sis_students(student_id) ON DELETE CASCADE,
+    student_id TEXT REFERENCES erp_sis_students(student_id) ON DELETE SET NULL,
     student_name TEXT NOT NULL,
     appointment_id UUID REFERENCES enrollease_appointments(appointment_id) ON DELETE SET NULL,
     step_number INT NOT NULL DEFAULT 2,
@@ -185,7 +186,6 @@ DECLARE
     v_has_hold BOOLEAN;
     v_all_cleared BOOLEAN;
     v_hold_count INT;
-    v_progress_record RECORD;
     v_result JSONB;
 BEGIN
     -- Fetch student
@@ -254,7 +254,7 @@ END;
 $$;
 
 -- ----------------------------------------------------------------------------
--- 6. SEED DATA
+-- 6. SEED DATA (7-Digit Student IDs: 8240871, 8240872, 8240873, 8240874, 8240875, 8240876)
 -- ----------------------------------------------------------------------------
 
 -- Workflow Steps (The 5 Standard Stages of Campus Enrollment)
@@ -271,88 +271,114 @@ ON CONFLICT (step_number) DO UPDATE SET
     clear_instructions = EXCLUDED.clear_instructions,
     required_documents = EXCLUDED.required_documents;
 
--- Students
+-- Students Master (ALL students in live queue and appointments MUST be defined here!)
 INSERT INTO erp_sis_students (student_id, first_name, last_name, full_name, email, program, year_level, section, student_type, tuition_status, balance_amount, erp_enrollment_status) VALUES
-('2024-00101', 'Juan', 'Dela Cruz', 'Juan Dela Cruz', 'juan.delacruz@ctu.edu.ph', 'BS Information Technology', 3, 'BSIT 3-A', 'Regular', 'Cleared / UniFAST', 0.00, 'Eligible for Enrollment'),
-('2024-00102', 'Maria', 'Santos', 'Maria Santos', 'maria.santos@ctu.edu.ph', 'BS Information Technology', 3, 'BSIT 3-B', 'Regular', 'With Balance', 1250.00, 'Clearance Hold'),
-('2024-00103', 'Carlo', 'Mendoza', 'Carlo Mendoza', 'carlo.mendoza@ctu.edu.ph', 'BS Information Technology', 2, 'BSIT 2-A', 'Transferee', 'Cleared / UniFAST', 0.00, 'Advised')
+('8240871', 'Andrea Nicole', 'Lim', 'Andrea Nicole Lim', 'andrea.lim@ctu.edu.ph', 'BS Information Technology', 3, 'BSIT 3-A', 'Regular', 'Cleared / UniFAST', 0.00, 'Eligible for Enrollment'),
+('8240872', 'Samantha Rose', 'Cruz', 'Samantha Rose Cruz', 'samantha.cruz@ctu.edu.ph', 'BS Information Technology', 3, 'BSIT 3-A', 'Regular', 'Cleared / UniFAST', 0.00, 'Eligible for Enrollment'),
+('8240873', 'Juan', 'Dela Cruz', 'Juan Dela Cruz', 'juan.delacruz@ctu.edu.ph', 'BS Information Technology', 3, 'BSIT 3-A', 'Regular', 'Cleared / UniFAST', 0.00, 'Eligible for Enrollment'),
+('8240874', 'Maria', 'Santos', 'Maria Santos', 'maria.santos@ctu.edu.ph', 'BS Information Technology', 3, 'BSIT 3-B', 'Regular', 'With Balance', 1250.00, 'Clearance Hold'),
+('8240875', 'Carlo', 'Mendoza', 'Carlo Mendoza', 'carlo.mendoza@ctu.edu.ph', 'BS Information Technology', 2, 'BSIT 2-A', 'Transferee', 'Cleared / UniFAST', 0.00, 'Advised'),
+('8240876', 'Mark Kenneth', 'Bautista', 'Mark Kenneth Bautista', 'mark.bautista@ctu.edu.ph', 'BS Information Technology', 3, 'BSIT 3-B', 'Regular', 'Cleared / UniFAST', 0.00, 'Eligible for Enrollment')
 ON CONFLICT (student_id) DO UPDATE SET
     full_name = EXCLUDED.full_name,
     tuition_status = EXCLUDED.tuition_status,
     balance_amount = EXCLUDED.balance_amount,
     erp_enrollment_status = EXCLUDED.erp_enrollment_status;
 
--- Clearances for Juan Dela Cruz (All Cleared)
+-- Clearances for 8240873 (Juan Dela Cruz - All Cleared)
 INSERT INTO erp_sis_clearances (student_id, office_code, office_name, location_room, status, remarks, updated_at) VALUES
-('2024-00101', 'MEDICAL', 'Campus Clinic', 'Health Services Bldg Rm 101', 'Cleared', 'Annual physical exam completed.', NOW()),
-('2024-00101', 'LIBRARY', 'University Library', 'Learning Resource Center 2F', 'Cleared', 'No overdue books or liabilities.', NOW()),
-('2024-00101', 'SAO_GUIDANCE', 'Student Affairs & Guidance', 'Student Center Rm 204', 'Cleared', 'Good standing and conduct verified.', NOW()),
-('2024-00101', 'CASHIER', 'Accounting & Cashier', 'Admin Bldg Window 4', 'Cleared', 'UniFAST Free Higher Education subsidized.', NOW()),
-('2024-00101', 'DEPT_LAB', 'IT Department Laboratories', 'Computer Lab 3', 'Cleared', 'No missing hardware or laboratory liabilities.', NOW());
+('8240873', 'MEDICAL', 'Campus Clinic', 'Health Services Bldg Rm 101', 'Cleared', 'Annual physical exam completed.', NOW()),
+('8240873', 'LIBRARY', 'University Library', 'Learning Resource Center 2F', 'Cleared', 'No overdue books or liabilities.', NOW()),
+('8240873', 'SAO_GUIDANCE', 'Student Affairs & Guidance', 'Student Center Rm 204', 'Cleared', 'Good standing and conduct verified.', NOW()),
+('8240873', 'CASHIER', 'Accounting & Cashier', 'Admin Bldg Window 4', 'Cleared', 'UniFAST Free Higher Education subsidized.', NOW()),
+('8240873', 'DEPT_LAB', 'IT Department Laboratories', 'Computer Lab 3', 'Cleared', 'No missing hardware or laboratory liabilities.', NOW());
 
--- Clearances for Maria Santos (Has Holds for demonstration)
+-- Clearances for 8240874 (Maria Santos - Has Holds for demonstration)
 INSERT INTO erp_sis_clearances (student_id, office_code, office_name, location_room, status, remarks, updated_at) VALUES
-('2024-00102', 'MEDICAL', 'Campus Clinic', 'Health Services Bldg Rm 101', 'Hold', 'Submit signed Medical Examination Slip at Campus Clinic.', NOW()),
-('2024-00102', 'LIBRARY', 'University Library', 'Learning Resource Center 2F', 'Hold', 'Return borrowed Arduino Kit and Networking textbook.', NOW()),
-('2024-00102', 'SAO_GUIDANCE', 'Student Affairs & Guidance', 'Student Center Rm 204', 'Cleared', 'Good standing verified.', NOW()),
-('2024-00102', 'CASHIER', 'Accounting & Cashier', 'Admin Bldg Window 4', 'Cleared', 'Assessed for UniFAST subsidy.', NOW()),
-('2024-00102', 'DEPT_LAB', 'IT Department Laboratories', 'Computer Lab 3', 'Cleared', 'Equipment return signed.', NOW());
+('8240874', 'MEDICAL', 'Campus Clinic', 'Health Services Bldg Rm 101', 'Hold', 'Submit signed Medical Examination Slip at Campus Clinic.', NOW()),
+('8240874', 'LIBRARY', 'University Library', 'Learning Resource Center 2F', 'Hold', 'Return borrowed Arduino Kit and Networking textbook.', NOW()),
+('8240874', 'SAO_GUIDANCE', 'Student Affairs & Guidance', 'Student Center Rm 204', 'Cleared', 'Good standing verified.', NOW()),
+('8240874', 'CASHIER', 'Accounting & Cashier', 'Admin Bldg Window 4', 'Cleared', 'Assessed for UniFAST subsidy.', NOW()),
+('8240874', 'DEPT_LAB', 'IT Department Laboratories', 'Computer Lab 3', 'Cleared', 'Equipment return signed.', NOW());
 
--- Clearances for Carlo Mendoza
+-- Clearances for 8240875 (Carlo Mendoza)
 INSERT INTO erp_sis_clearances (student_id, office_code, office_name, location_room, status, remarks, updated_at) VALUES
-('2024-00103', 'MEDICAL', 'Campus Clinic', 'Health Services Bldg Rm 101', 'Cleared', 'Health certificate valid.', NOW()),
-('2024-00103', 'LIBRARY', 'University Library', 'Learning Resource Center 2F', 'Cleared', 'Transferee library clearance processed.', NOW()),
-('2024-00103', 'SAO_GUIDANCE', 'Student Affairs & Guidance', 'Student Center Rm 204', 'Cleared', 'Orientation completed.', NOW()),
-('2024-00103', 'CASHIER', 'Accounting & Cashier', 'Admin Bldg Window 4', 'Cleared', 'UniFAST verified.', NOW()),
-('2024-00103', 'DEPT_LAB', 'IT Department Laboratories', 'Computer Lab 3', 'Cleared', 'Cleared.', NOW());
+('8240875', 'MEDICAL', 'Campus Clinic', 'Health Services Bldg Rm 101', 'Cleared', 'Health certificate valid.', NOW()),
+('8240875', 'LIBRARY', 'University Library', 'Learning Resource Center 2F', 'Cleared', 'Transferee library clearance processed.', NOW()),
+('8240875', 'SAO_GUIDANCE', 'Student Affairs & Guidance', 'Student Center Rm 204', 'Cleared', 'Orientation completed.', NOW()),
+('8240875', 'CASHIER', 'Accounting & Cashier', 'Admin Bldg Window 4', 'Cleared', 'UniFAST verified.', NOW()),
+('8240875', 'DEPT_LAB', 'IT Department Laboratories', 'Computer Lab 3', 'Cleared', 'Cleared.', NOW());
+
+-- Clearances for 8240871, 8240872, 8240876
+INSERT INTO erp_sis_clearances (student_id, office_code, office_name, location_room, status, remarks, updated_at) VALUES
+('8240871', 'MEDICAL', 'Campus Clinic', 'Health Services Bldg Rm 101', 'Cleared', 'Cleared.', NOW()),
+('8240871', 'LIBRARY', 'University Library', 'Learning Resource Center 2F', 'Cleared', 'Cleared.', NOW()),
+('8240872', 'MEDICAL', 'Campus Clinic', 'Health Services Bldg Rm 101', 'Cleared', 'Cleared.', NOW()),
+('8240872', 'LIBRARY', 'University Library', 'Learning Resource Center 2F', 'Cleared', 'Cleared.', NOW()),
+('8240876', 'MEDICAL', 'Campus Clinic', 'Health Services Bldg Rm 101', 'Cleared', 'Cleared.', NOW()),
+('8240876', 'LIBRARY', 'University Library', 'Learning Resource Center 2F', 'Cleared', 'Cleared.', NOW());
 
 -- Curriculum Subjects (Including PC 316)
 INSERT INTO erp_sis_curriculum_subjects (student_id, subject_code, descriptive_title, units, schedule_block, is_advised, semester, school_year) VALUES
-('2024-00101', 'PC 316', 'Advanced Web Systems & Full-Stack Development', 3, 'MWF 09:00 AM - 10:30 AM (Lab 3)', TRUE, '1st Semester', '2026-2027'),
-('2024-00101', 'IT 312', 'Information Assurance and Security', 3, 'TTH 10:30 AM - 12:00 PM (Room 402)', TRUE, '1st Semester', '2026-2027'),
-('2024-00101', 'IT 313', 'Mobile Application Development', 3, 'MWF 01:00 PM - 02:30 PM (Lab 2)', TRUE, '1st Semester', '2026-2027'),
-('2024-00101', 'IT 314', 'Networking 2 / Advanced Routing & Switching', 3, 'TTH 01:00 PM - 02:30 PM (Cisco Lab)', TRUE, '1st Semester', '2026-2027'),
-('2024-00101', 'GE 311', 'Ethics and Social Issues in Computing', 3, 'Friday 03:00 PM - 06:00 PM (AVR)', TRUE, '1st Semester', '2026-2027'),
+('8240873', 'PC 316', 'Advanced Web Systems & Full-Stack Development', 3, 'MWF 09:00 AM - 10:30 AM (Lab 3)', TRUE, '1st Semester', '2026-2027'),
+('8240873', 'IT 312', 'Information Assurance and Security', 3, 'TTH 10:30 AM - 12:00 PM (Room 402)', TRUE, '1st Semester', '2026-2027'),
+('8240873', 'IT 313', 'Mobile Application Development', 3, 'MWF 01:00 PM - 02:30 PM (Lab 2)', TRUE, '1st Semester', '2026-2027'),
+('8240873', 'IT 314', 'Networking 2 / Advanced Routing & Switching', 3, 'TTH 01:00 PM - 02:30 PM (Cisco Lab)', TRUE, '1st Semester', '2026-2027'),
+('8240873', 'GE 311', 'Ethics and Social Issues in Computing', 3, 'Friday 03:00 PM - 06:00 PM (AVR)', TRUE, '1st Semester', '2026-2027'),
 
-('2024-00102', 'PC 316', 'Advanced Web Systems & Full-Stack Development', 3, 'MWF 10:30 AM - 12:00 PM (Lab 3)', FALSE, '1st Semester', '2026-2027'),
-('2024-00102', 'IT 312', 'Information Assurance and Security', 3, 'TTH 08:30 AM - 10:00 AM (Room 402)', FALSE, '1st Semester', '2026-2027'),
-('2024-00102', 'IT 313', 'Mobile Application Development', 3, 'MWF 02:30 PM - 04:00 PM (Lab 2)', FALSE, '1st Semester', '2026-2027');
+('8240874', 'PC 316', 'Advanced Web Systems & Full-Stack Development', 3, 'MWF 10:30 AM - 12:00 PM (Lab 3)', FALSE, '1st Semester', '2026-2027'),
+('8240874', 'IT 312', 'Information Assurance and Security', 3, 'TTH 08:30 AM - 10:00 AM (Room 402)', FALSE, '1st Semester', '2026-2027'),
+('8240874', 'IT 313', 'Mobile Application Development', 3, 'MWF 02:30 PM - 04:00 PM (Lab 2)', FALSE, '1st Semester', '2026-2027'),
+
+('8240875', 'PC 316', 'Advanced Web Systems & Full-Stack Development', 3, 'MWF 09:00 AM - 10:30 AM (Lab 3)', TRUE, '1st Semester', '2026-2027'),
+('8240875', 'IT 312', 'Information Assurance and Security', 3, 'TTH 10:30 AM - 12:00 PM (Room 402)', TRUE, '1st Semester', '2026-2027');
 
 -- EnrollEase Users
 INSERT INTO enrollease_users (student_id, pin_or_password, role) VALUES
-('2024-00101', 'demo1234', 'student'),
-('2024-00102', 'demo1234', 'student'),
-('2024-00103', 'demo1234', 'student'),
+('8240871', 'demo1234', 'student'),
+('8240872', 'demo1234', 'student'),
+('8240873', 'demo1234', 'student'),
+('8240874', 'demo1234', 'student'),
+('8240875', 'demo1234', 'student'),
+('8240876', 'demo1234', 'student'),
 ('STAFF-ADV-01', 'staff123', 'staff_advising'),
 ('STAFF-REG-01', 'staff123', 'staff_registrar'),
 ('STAFF-CSH-01', 'staff123', 'staff_cashier')
 ON CONFLICT (student_id) DO NOTHING;
 
--- Initial Progress for Juan Dela Cruz
+-- Initial Progress for Juan Dela Cruz (8240873)
 INSERT INTO enrollease_student_progress (student_id, step_number, status, staff_notes) VALUES
-('2024-00101', 1, 'completed', 'All 5 offices signed and cleared online.'),
-('2024-00101', 2, 'in_queue', 'Waiting for IT Advising Window 1.'),
-('2024-00101', 3, 'locked', 'Pending Step 2 advising signature.'),
-('2024-00101', 4, 'locked', 'Pending registrar evaluation.'),
-('2024-00101', 5, 'locked', 'Pending assessment.');
+('8240873', 1, 'completed', 'All 5 offices signed and cleared online.'),
+('8240873', 2, 'in_queue', 'Waiting for IT Advising Window 1.'),
+('8240873', 3, 'locked', 'Pending Step 2 advising signature.'),
+('8240873', 4, 'locked', 'Pending registrar evaluation.'),
+('8240873', 5, 'locked', 'Pending assessment.');
 
--- Initial Progress for Maria Santos
+-- Initial Progress for Maria Santos (8240874)
 INSERT INTO enrollease_student_progress (student_id, step_number, status, staff_notes) VALUES
-('2024-00102', 1, 'action_required', 'Clinic & Library clearance holds must be resolved first.'),
-('2024-00102', 2, 'locked', 'Locked due to pre-enrollment clearance hold.'),
-('2024-00102', 3, 'locked', 'Locked.'),
-('2024-00102', 4, 'locked', 'Locked.'),
-('2024-00102', 5, 'locked', 'Locked.');
+('8240874', 1, 'action_required', 'Clinic & Library clearance holds must be resolved first.'),
+('8240874', 2, 'locked', 'Locked due to pre-enrollment clearance hold.'),
+('8240874', 3, 'locked', 'Locked.'),
+('8240874', 4, 'locked', 'Locked.'),
+('8240874', 5, 'locked', 'Locked.');
+
+-- Initial Progress for Carlo Mendoza (8240875)
+INSERT INTO enrollease_student_progress (student_id, step_number, status, staff_notes) VALUES
+('8240875', 1, 'completed', 'Cleared.'),
+('8240875', 2, 'completed', 'Advised by Dept Chair.'),
+('8240875', 3, 'ready_to_book', 'Ready for Registrar Encoding.'),
+('8240875', 4, 'locked', 'Locked.'),
+('8240875', 5, 'locked', 'Locked.');
 
 -- Appointments
 INSERT INTO enrollease_appointments (reference_code, student_id, step_number, purpose, status) VALUES
-('EE-2026-8841', '2024-00101', 2, 'Curriculum Advising & PC 316 Loading', 'Checked-In'),
-('EE-2026-9022', '2024-00103', 3, 'Registrar Document Verification', 'Upcoming');
+('EE-2026-8841', '8240873', 2, 'Curriculum Advising & PC 316 Loading', 'Checked-In'),
+('EE-2026-9022', '8240875', 3, 'Registrar Document Verification', 'Upcoming');
 
--- Live Queue Tickets
+-- Live Queue Tickets (Foreign key student_id matches existing erp_sis_students records!)
 INSERT INTO enrollease_live_queue (ticket_number, student_id, student_name, step_number, counter_window, priority_type, status, estimated_wait_mins, called_at) VALUES
-('ADV-001', '2024-00095', 'Andrea Nicole Lim', 2, 'Window 1 - IT Advising', 'Booked Appointment', 'Serving', 0, NOW() - INTERVAL '4 minutes'),
-('ADV-004', '2024-00101', 'Juan Dela Cruz', 2, 'Window 1 - IT Advising', 'Booked Appointment', 'Waiting', 8, NULL),
-('ADV-007', '2024-00115', 'Mark Kenneth Bautista', 2, 'Window 1 - IT Advising', 'Regular Walk-In', 'Waiting', 16, NULL),
-('REG-014', '2024-00088', 'Samantha Rose Cruz', 3, 'Window 2 - Registrar', 'Booked Appointment', 'Serving', 0, NOW() - INTERVAL '2 minutes'),
-('REG-019', '2024-00103', 'Carlo Mendoza', 3, 'Window 2 - Registrar', 'Booked Appointment', 'Waiting', 12, NULL);
+('ADV-001', '8240871', 'Andrea Nicole Lim', 2, 'Window 1 - IT Advising', 'Booked Appointment', 'Serving', 0, NOW() - INTERVAL '4 minutes'),
+('ADV-004', '8240873', 'Juan Dela Cruz', 2, 'Window 1 - IT Advising', 'Booked Appointment', 'Waiting', 8, NULL),
+('ADV-007', '8240876', 'Mark Kenneth Bautista', 2, 'Window 1 - IT Advising', 'Regular Walk-In', 'Waiting', 16, NULL),
+('REG-014', '8240872', 'Samantha Rose Cruz', 3, 'Window 2 - Registrar', 'Booked Appointment', 'Serving', 0, NOW() - INTERVAL '2 minutes'),
+('REG-019', '8240875', 'Carlo Mendoza', 3, 'Window 2 - Registrar', 'Booked Appointment', 'Waiting', 12, NULL);

@@ -89,7 +89,7 @@ graph TD
    - Configure permissive demo RLS policies.
    - Enable `supabase_realtime` publication.
    - Install the `sync_student_erp_status(p_student_id)` RPC function.
-   - Seed realistic CTU-style student records (`Juan Dela Cruz`, `Maria Santos`, `Carlo Mendoza`) and schedule blocks.
+   - Seed realistic CTU-style student records (`Juan Dela Cruz` [8240873], `Maria Santos` [8240874], `Carlo Mendoza` [8240875]) and schedule blocks.
 
 ---
 

@@ -1,5 +1,6 @@
 // ============================================================================
 // EnrollEase (PC316v2) - Core Application Controller & Realtime Router
+// Student ID Format: 7 Digits (e.g. 8240873)
 // ============================================================================
 
 (function () {
@@ -7,10 +8,41 @@
 
   // --- SEED INITIAL STATE ---
   function initStorage() {
-    if (!localStorage.getItem('ee_seeded_v3')) {
+    // If not seeded with v4 or if old dash IDs are present, re-seed
+    if (!localStorage.getItem('ee_seeded_v4') || (localStorage.getItem('ee_session') && localStorage.getItem('ee_session').includes('-'))) {
       const students = [
         {
-          student_id: '2024-00101',
+          student_id: '8240871',
+          first_name: 'Andrea Nicole',
+          last_name: 'Lim',
+          full_name: 'Andrea Nicole Lim',
+          email: 'andrea.lim@ctu.edu.ph',
+          program: 'BS Information Technology',
+          year_level: 3,
+          section: 'BSIT 3-A',
+          student_type: 'Regular',
+          tuition_status: 'Cleared / UniFAST',
+          balance_amount: 0.0,
+          erp_enrollment_status: 'Eligible for Enrollment',
+          contact: '+63 911 234 5678'
+        },
+        {
+          student_id: '8240872',
+          first_name: 'Samantha Rose',
+          last_name: 'Cruz',
+          full_name: 'Samantha Rose Cruz',
+          email: 'samantha.cruz@ctu.edu.ph',
+          program: 'BS Information Technology',
+          year_level: 3,
+          section: 'BSIT 3-A',
+          student_type: 'Regular',
+          tuition_status: 'Cleared / UniFAST',
+          balance_amount: 0.0,
+          erp_enrollment_status: 'Eligible for Enrollment',
+          contact: '+63 912 876 5432'
+        },
+        {
+          student_id: '8240873',
           first_name: 'Juan',
           last_name: 'Dela Cruz',
           full_name: 'Juan Dela Cruz',
@@ -25,7 +57,7 @@
           contact: '+63 912 345 6789'
         },
         {
-          student_id: '2024-00102',
+          student_id: '8240874',
           first_name: 'Maria',
           last_name: 'Santos',
           full_name: 'Maria Santos',
@@ -40,7 +72,7 @@
           contact: '+63 923 456 7890'
         },
         {
-          student_id: '2024-00103',
+          student_id: '8240875',
           first_name: 'Carlo',
           last_name: 'Mendoza',
           full_name: 'Carlo Mendoza',
@@ -53,45 +85,68 @@
           balance_amount: 0.0,
           erp_enrollment_status: 'Advised',
           contact: '+63 934 567 8901'
+        },
+        {
+          student_id: '8240876',
+          first_name: 'Mark Kenneth',
+          last_name: 'Bautista',
+          full_name: 'Mark Kenneth Bautista',
+          email: 'mark.bautista@ctu.edu.ph',
+          program: 'BS Information Technology',
+          year_level: 3,
+          section: 'BSIT 3-B',
+          student_type: 'Regular',
+          tuition_status: 'Cleared / UniFAST',
+          balance_amount: 0.0,
+          erp_enrollment_status: 'Eligible for Enrollment',
+          contact: '+63 945 678 9012'
         }
       ];
 
       const clearances = [
-        // Juan Dela Cruz (All Cleared)
-        { student_id: '2024-00101', office_code: 'MEDICAL', office_name: 'Campus Clinic', location_room: 'Health Services Rm 101', status: 'Cleared', remarks: 'Annual physical exam completed.' },
-        { student_id: '2024-00101', office_code: 'LIBRARY', office_name: 'University Library', location_room: 'Learning Resource Center 2F', status: 'Cleared', remarks: 'No overdue books or liabilities.' },
-        { student_id: '2024-00101', office_code: 'SAO_GUIDANCE', office_name: 'Student Affairs & Guidance', location_room: 'Student Center Rm 204', status: 'Cleared', remarks: 'Good moral standing verified.' },
-        { student_id: '2024-00101', office_code: 'CASHIER', office_name: 'Accounting & Cashier', location_room: 'Admin Bldg Window 4', status: 'Cleared', remarks: 'UniFAST Free Higher Education subsidized.' },
-        { student_id: '2024-00101', office_code: 'DEPT_LAB', office_name: 'IT Department Laboratories', location_room: 'Computer Lab 3', status: 'Cleared', remarks: 'Lab kit inventory signed.' },
+        // 8240873 - Juan Dela Cruz (All Cleared)
+        { student_id: '8240873', office_code: 'MEDICAL', office_name: 'Campus Clinic', location_room: 'Health Services Rm 101', status: 'Cleared', remarks: 'Annual physical exam completed.' },
+        { student_id: '8240873', office_code: 'LIBRARY', office_name: 'University Library', location_room: 'Learning Resource Center 2F', status: 'Cleared', remarks: 'No overdue books or liabilities.' },
+        { student_id: '8240873', office_code: 'SAO_GUIDANCE', office_name: 'Student Affairs & Guidance', location_room: 'Student Center Rm 204', status: 'Cleared', remarks: 'Good moral standing verified.' },
+        { student_id: '8240873', office_code: 'CASHIER', office_name: 'Accounting & Cashier', location_room: 'Admin Bldg Window 4', status: 'Cleared', remarks: 'UniFAST Free Higher Education subsidized.' },
+        { student_id: '8240873', office_code: 'DEPT_LAB', office_name: 'IT Department Laboratories', location_room: 'Computer Lab 3', status: 'Cleared', remarks: 'Lab kit inventory signed.' },
 
-        // Maria Santos (Has Holds for demonstration)
-        { student_id: '2024-00102', office_code: 'MEDICAL', office_name: 'Campus Clinic', location_room: 'Health Services Rm 101', status: 'Hold', remarks: 'Submit signed Medical Examination Slip at Campus Clinic.' },
-        { student_id: '2024-00102', office_code: 'LIBRARY', office_name: 'University Library', location_room: 'Learning Resource Center 2F', status: 'Hold', remarks: 'Return borrowed Arduino kit and Networking textbook.' },
-        { student_id: '2024-00102', office_code: 'SAO_GUIDANCE', office_name: 'Student Affairs & Guidance', location_room: 'Student Center Rm 204', status: 'Cleared', remarks: 'Good moral verified.' },
-        { student_id: '2024-00102', office_code: 'CASHIER', office_name: 'Accounting & Cashier', location_room: 'Admin Bldg Window 4', status: 'Cleared', remarks: 'Eligible for UniFAST.' },
-        { student_id: '2024-00102', office_code: 'DEPT_LAB', office_name: 'IT Department Laboratories', location_room: 'Computer Lab 3', status: 'Cleared', remarks: 'Equipment return verified.' },
+        // 8240874 - Maria Santos (Has Holds for demonstration)
+        { student_id: '8240874', office_code: 'MEDICAL', office_name: 'Campus Clinic', location_room: 'Health Services Rm 101', status: 'Hold', remarks: 'Submit signed Medical Examination Slip at Campus Clinic.' },
+        { student_id: '8240874', office_code: 'LIBRARY', office_name: 'University Library', location_room: 'Learning Resource Center 2F', status: 'Hold', remarks: 'Return borrowed Arduino kit and Networking textbook.' },
+        { student_id: '8240874', office_code: 'SAO_GUIDANCE', office_name: 'Student Affairs & Guidance', location_room: 'Student Center Rm 204', status: 'Cleared', remarks: 'Good moral verified.' },
+        { student_id: '8240874', office_code: 'CASHIER', office_name: 'Accounting & Cashier', location_room: 'Admin Bldg Window 4', status: 'Cleared', remarks: 'Eligible for UniFAST.' },
+        { student_id: '8240874', office_code: 'DEPT_LAB', office_name: 'IT Department Laboratories', location_room: 'Computer Lab 3', status: 'Cleared', remarks: 'Equipment return verified.' },
 
-        // Carlo Mendoza
-        { student_id: '2024-00103', office_code: 'MEDICAL', office_name: 'Campus Clinic', location_room: 'Health Services Rm 101', status: 'Cleared', remarks: 'Health certificate valid.' },
-        { student_id: '2024-00103', office_code: 'LIBRARY', office_name: 'University Library', location_room: 'Learning Resource Center 2F', status: 'Cleared', remarks: 'Transferee library card issued.' },
-        { student_id: '2024-00103', office_code: 'SAO_GUIDANCE', office_name: 'Student Affairs & Guidance', location_room: 'Student Center Rm 204', status: 'Cleared', remarks: 'Transferee orientation completed.' },
-        { student_id: '2024-00103', office_code: 'CASHIER', office_name: 'Accounting & Cashier', location_room: 'Admin Bldg Window 4', status: 'Cleared', remarks: 'Subsidized under UniFAST.' },
-        { student_id: '2024-00103', office_code: 'DEPT_LAB', office_name: 'IT Department Laboratories', location_room: 'Computer Lab 3', status: 'Cleared', remarks: 'Cleared.' }
+        // 8240875 - Carlo Mendoza
+        { student_id: '8240875', office_code: 'MEDICAL', office_name: 'Campus Clinic', location_room: 'Health Services Rm 101', status: 'Cleared', remarks: 'Health certificate valid.' },
+        { student_id: '8240875', office_code: 'LIBRARY', office_name: 'University Library', location_room: 'Learning Resource Center 2F', status: 'Cleared', remarks: 'Transferee library card issued.' },
+        { student_id: '8240875', office_code: 'SAO_GUIDANCE', office_name: 'Student Affairs & Guidance', location_room: 'Student Center Rm 204', status: 'Cleared', remarks: 'Transferee orientation completed.' },
+        { student_id: '8240875', office_code: 'CASHIER', office_name: 'Accounting & Cashier', location_room: 'Admin Bldg Window 4', status: 'Cleared', remarks: 'Subsidized under UniFAST.' },
+        { student_id: '8240875', office_code: 'DEPT_LAB', office_name: 'IT Department Laboratories', location_room: 'Computer Lab 3', status: 'Cleared', remarks: 'Cleared.' },
+
+        // 8240871, 8240872, 8240876
+        { student_id: '8240871', office_code: 'MEDICAL', office_name: 'Campus Clinic', location_room: 'Health Services Rm 101', status: 'Cleared', remarks: 'Cleared.' },
+        { student_id: '8240871', office_code: 'LIBRARY', office_name: 'University Library', location_room: 'Learning Resource Center 2F', status: 'Cleared', remarks: 'Cleared.' },
+        { student_id: '8240872', office_code: 'MEDICAL', office_name: 'Campus Clinic', location_room: 'Health Services Rm 101', status: 'Cleared', remarks: 'Cleared.' },
+        { student_id: '8240872', office_code: 'LIBRARY', office_name: 'University Library', location_room: 'Learning Resource Center 2F', status: 'Cleared', remarks: 'Cleared.' },
+        { student_id: '8240876', office_code: 'MEDICAL', office_name: 'Campus Clinic', location_room: 'Health Services Rm 101', status: 'Cleared', remarks: 'Cleared.' },
+        { student_id: '8240876', office_code: 'LIBRARY', office_name: 'University Library', location_room: 'Learning Resource Center 2F', status: 'Cleared', remarks: 'Cleared.' }
       ];
 
       const subjects = [
-        { student_id: '2024-00101', subject_code: 'PC 316', descriptive_title: 'Advanced Web Systems & Full-Stack Development', units: 3, schedule_block: 'MWF 09:00 AM - 10:30 AM (Lab 3)', is_advised: true },
-        { student_id: '2024-00101', subject_code: 'IT 312', descriptive_title: 'Information Assurance and Security', units: 3, schedule_block: 'TTH 10:30 AM - 12:00 PM (Room 402)', is_advised: true },
-        { student_id: '2024-00101', subject_code: 'IT 313', descriptive_title: 'Mobile Application Development', units: 3, schedule_block: 'MWF 01:00 PM - 02:30 PM (Lab 2)', is_advised: true },
-        { student_id: '2024-00101', subject_code: 'IT 314', descriptive_title: 'Networking 2 / Advanced Routing & Switching', units: 3, schedule_block: 'TTH 01:00 PM - 02:30 PM (Cisco Lab)', is_advised: true },
-        { student_id: '2024-00101', subject_code: 'GE 311', descriptive_title: 'Ethics and Social Issues in Computing', units: 3, schedule_block: 'Friday 03:00 PM - 06:00 PM (AVR)', is_advised: true },
+        { student_id: '8240873', subject_code: 'PC 316', descriptive_title: 'Advanced Web Systems & Full-Stack Development', units: 3, schedule_block: 'MWF 09:00 AM - 10:30 AM (Lab 3)', is_advised: true },
+        { student_id: '8240873', subject_code: 'IT 312', descriptive_title: 'Information Assurance and Security', units: 3, schedule_block: 'TTH 10:30 AM - 12:00 PM (Room 402)', is_advised: true },
+        { student_id: '8240873', subject_code: 'IT 313', descriptive_title: 'Mobile Application Development', units: 3, schedule_block: 'MWF 01:00 PM - 02:30 PM (Lab 2)', is_advised: true },
+        { student_id: '8240873', subject_code: 'IT 314', descriptive_title: 'Networking 2 / Advanced Routing & Switching', units: 3, schedule_block: 'TTH 01:00 PM - 02:30 PM (Cisco Lab)', is_advised: true },
+        { student_id: '8240873', subject_code: 'GE 311', descriptive_title: 'Ethics and Social Issues in Computing', units: 3, schedule_block: 'Friday 03:00 PM - 06:00 PM (AVR)', is_advised: true },
 
-        { student_id: '2024-00102', subject_code: 'PC 316', descriptive_title: 'Advanced Web Systems & Full-Stack Development', units: 3, schedule_block: 'MWF 10:30 AM - 12:00 PM (Lab 3)', is_advised: false },
-        { student_id: '2024-00102', subject_code: 'IT 312', descriptive_title: 'Information Assurance and Security', units: 3, schedule_block: 'TTH 08:30 AM - 10:00 AM (Room 402)', is_advised: false },
-        { student_id: '2024-00102', subject_code: 'IT 313', descriptive_title: 'Mobile Application Development', units: 3, schedule_block: 'MWF 02:30 PM - 04:00 PM (Lab 2)', is_advised: false },
+        { student_id: '8240874', subject_code: 'PC 316', descriptive_title: 'Advanced Web Systems & Full-Stack Development', units: 3, schedule_block: 'MWF 10:30 AM - 12:00 PM (Lab 3)', is_advised: false },
+        { student_id: '8240874', subject_code: 'IT 312', descriptive_title: 'Information Assurance and Security', units: 3, schedule_block: 'TTH 08:30 AM - 10:00 AM (Room 402)', is_advised: false },
+        { student_id: '8240874', subject_code: 'IT 313', descriptive_title: 'Mobile Application Development', units: 3, schedule_block: 'MWF 02:30 PM - 04:00 PM (Lab 2)', is_advised: false },
 
-        { student_id: '2024-00103', subject_code: 'PC 316', descriptive_title: 'Advanced Web Systems & Full-Stack Development', units: 3, schedule_block: 'MWF 09:00 AM - 10:30 AM (Lab 3)', is_advised: true },
-        { student_id: '2024-00103', subject_code: 'IT 312', descriptive_title: 'Information Assurance and Security', units: 3, schedule_block: 'TTH 10:30 AM - 12:00 PM (Room 402)', is_advised: true }
+        { student_id: '8240875', subject_code: 'PC 316', descriptive_title: 'Advanced Web Systems & Full-Stack Development', units: 3, schedule_block: 'MWF 09:00 AM - 10:30 AM (Lab 3)', is_advised: true },
+        { student_id: '8240875', subject_code: 'IT 312', descriptive_title: 'Information Assurance and Security', units: 3, schedule_block: 'TTH 10:30 AM - 12:00 PM (Room 402)', is_advised: true }
       ];
 
       const workflowSteps = [
@@ -138,33 +193,33 @@
       ];
 
       const progress = [
-        // Juan Dela Cruz
-        { student_id: '2024-00101', step_number: 1, status: 'completed', staff_notes: 'All 5 clearances verified.' },
-        { student_id: '2024-00101', step_number: 2, status: 'in_queue', staff_notes: 'Waiting for IT Advising Window 1.' },
-        { student_id: '2024-00101', step_number: 3, status: 'locked', staff_notes: 'Pending Step 2 completion.' },
-        { student_id: '2024-00101', step_number: 4, status: 'locked', staff_notes: 'Pending registrar evaluation.' },
-        { student_id: '2024-00101', step_number: 5, status: 'locked', staff_notes: 'Pending assessment.' },
+        // 8240873 - Juan Dela Cruz
+        { student_id: '8240873', step_number: 1, status: 'completed', staff_notes: 'All 5 clearances verified.' },
+        { student_id: '8240873', step_number: 2, status: 'in_queue', staff_notes: 'Waiting for IT Advising Window 1.' },
+        { student_id: '8240873', step_number: 3, status: 'locked', staff_notes: 'Pending Step 2 completion.' },
+        { student_id: '8240873', step_number: 4, status: 'locked', staff_notes: 'Pending registrar evaluation.' },
+        { student_id: '8240873', step_number: 5, status: 'locked', staff_notes: 'Pending assessment.' },
 
-        // Maria Santos (Has Hold)
-        { student_id: '2024-00102', step_number: 1, status: 'action_required', staff_notes: 'Clinic and Library clearances on Hold.' },
-        { student_id: '2024-00102', step_number: 2, status: 'locked', staff_notes: 'Locked: Resolve Step 1 first.' },
-        { student_id: '2024-00102', step_number: 3, status: 'locked', staff_notes: 'Locked.' },
-        { student_id: '2024-00102', step_number: 4, status: 'locked', staff_notes: 'Locked.' },
-        { student_id: '2024-00102', step_number: 5, status: 'locked', staff_notes: 'Locked.' },
+        // 8240874 - Maria Santos (Has Hold)
+        { student_id: '8240874', step_number: 1, status: 'action_required', staff_notes: 'Clinic and Library clearances on Hold.' },
+        { student_id: '8240874', step_number: 2, status: 'locked', staff_notes: 'Locked: Resolve Step 1 first.' },
+        { student_id: '8240874', step_number: 3, status: 'locked', staff_notes: 'Locked.' },
+        { student_id: '8240874', step_number: 4, status: 'locked', staff_notes: 'Locked.' },
+        { student_id: '8240874', step_number: 5, status: 'locked', staff_notes: 'Locked.' },
 
-        // Carlo Mendoza
-        { student_id: '2024-00103', step_number: 1, status: 'completed', staff_notes: 'Cleared.' },
-        { student_id: '2024-00103', step_number: 2, status: 'completed', staff_notes: 'Advised by Dept Chair.' },
-        { student_id: '2024-00103', step_number: 3, status: 'ready_to_book', staff_notes: 'Ready for Registrar Encoding.' },
-        { student_id: '2024-00103', step_number: 4, status: 'locked', staff_notes: 'Locked.' },
-        { student_id: '2024-00103', step_number: 5, status: 'locked', staff_notes: 'Locked.' }
+        // 8240875 - Carlo Mendoza
+        { student_id: '8240875', step_number: 1, status: 'completed', staff_notes: 'Cleared.' },
+        { student_id: '8240875', step_number: 2, status: 'completed', staff_notes: 'Advised by Dept Chair.' },
+        { student_id: '8240875', step_number: 3, status: 'ready_to_book', staff_notes: 'Ready for Registrar Encoding.' },
+        { student_id: '8240875', step_number: 4, status: 'locked', staff_notes: 'Locked.' },
+        { student_id: '8240875', step_number: 5, status: 'locked', staff_notes: 'Locked.' }
       ];
 
       const appointments = [
         {
           id: 'a1',
           reference_code: 'EE-2026-8841',
-          student_id: '2024-00101',
+          student_id: '8240873',
           step_number: 2,
           purpose: 'Department Curriculum Advising & PC 316 Loading',
           date: new Date().toISOString().slice(0, 10),
@@ -176,7 +231,7 @@
         {
           id: 'a2',
           reference_code: 'EE-2026-9022',
-          student_id: '2024-00103',
+          student_id: '8240875',
           step_number: 3,
           purpose: 'Registrar Document Verification',
           date: new Date().toISOString().slice(0, 10),
@@ -191,7 +246,7 @@
         {
           queue_id: 'q1',
           ticket_number: 'ADV-001',
-          student_id: '2024-00095',
+          student_id: '8240871',
           student_name: 'Andrea Nicole Lim',
           step_number: 2,
           counter_window: 'Window 1 - IT Advising',
@@ -203,7 +258,7 @@
         {
           queue_id: 'q2',
           ticket_number: 'ADV-004',
-          student_id: '2024-00101',
+          student_id: '8240873',
           student_name: 'Juan Dela Cruz',
           step_number: 2,
           counter_window: 'Window 1 - IT Advising',
@@ -215,7 +270,7 @@
         {
           queue_id: 'q3',
           ticket_number: 'ADV-007',
-          student_id: '2024-00115',
+          student_id: '8240876',
           student_name: 'Mark Kenneth Bautista',
           step_number: 2,
           counter_window: 'Window 1 - IT Advising',
@@ -227,7 +282,7 @@
         {
           queue_id: 'q4',
           ticket_number: 'REG-014',
-          student_id: '2024-00088',
+          student_id: '8240872',
           student_name: 'Samantha Rose Cruz',
           step_number: 3,
           counter_window: 'Window 2 - Registrar',
@@ -239,7 +294,7 @@
         {
           queue_id: 'q5',
           ticket_number: 'REG-019',
-          student_id: '2024-00103',
+          student_id: '8240875',
           student_name: 'Carlo Mendoza',
           step_number: 3,
           counter_window: 'Window 2 - Registrar',
@@ -257,8 +312,8 @@
       localStorage.setItem('ee_progress', JSON.stringify(progress));
       localStorage.setItem('ee_appts', JSON.stringify(appointments));
       localStorage.setItem('ee_queue', JSON.stringify(queue));
-      localStorage.setItem('ee_session', '2024-00101'); // Default to Juan Dela Cruz
-      localStorage.setItem('ee_seeded_v3', 'true');
+      localStorage.setItem('ee_session', '8240873'); // Default to Juan Dela Cruz (8240873)
+      localStorage.setItem('ee_seeded_v4', 'true');
     }
   }
 
@@ -275,13 +330,12 @@
     },
     set(key, val) {
       localStorage.setItem('ee_' + key, JSON.stringify(val));
-      // Broadcast change across tabs
       if (window.eeBroadcast) {
         window.eeBroadcast.postMessage({ type: 'SYNC_' + key.toUpperCase(), payload: val });
       }
     },
     currentStudentId() {
-      return localStorage.getItem('ee_session') || '2024-00101';
+      return localStorage.getItem('ee_session') || '8240873';
     },
     currentStudent() {
       const sid = this.currentStudentId();
@@ -399,7 +453,7 @@
           <select id="demoStudentSwitch" style="padding: 4px 8px; font-size: 11px; width: auto; height: 28px; border-radius: 8px; margin: 0; background: #0f172a; color: #fff; border: 1px solid #334155;">
             ${students.map(s => `
               <option value="${s.student_id}" ${s.student_id === currentSid ? 'selected' : ''}>
-                👤 ${s.full_name} (${s.student_id === '2024-00102' ? 'Has Holds' : 'Cleared'})
+                👤 ${s.full_name} (${s.student_id}) - ${s.student_id === '8240874' ? 'Has Holds' : 'Cleared'}
               </option>
             `).join('')}
           </select>
@@ -572,8 +626,8 @@
             <p class="muted center" style="margin-bottom: 20px;">Access your official enrollment appointment pass</p>
             
             <form id="loginForm">
-              <label>Student ID Number</label>
-              <input type="text" id="loginId" value="2024-00101" placeholder="e.g. 2024-00101" required>
+              <label>7-Digit Student ID Number</label>
+              <input type="text" id="loginId" value="8240873" placeholder="e.g. 8240873" maxlength="7" required>
               
               <label>PIN or Password</label>
               <input type="password" id="loginPw" value="demo1234" required>
@@ -587,10 +641,10 @@
               <label style="margin-bottom: 8px;">⚡ Quick Demo Login:</label>
               <div style="display: flex; flex-direction: column; gap: 8px;">
                 <button type="button" class="btn alt sm" id="quickJuan">
-                  👤 Juan Dela Cruz (Cleared • Regular Student)
+                  👤 Juan Dela Cruz (8240873 • Cleared)
                 </button>
                 <button type="button" class="btn alt sm" id="quickMaria">
-                  ⚠️ Maria Santos (With Medical/Library Holds)
+                  ⚠️ Maria Santos (8240874 • With Holds)
                 </button>
               </div>
             </div>
@@ -613,14 +667,116 @@
       };
 
       $('#quickJuan').onclick = () => {
-        localStorage.setItem('ee_session', '2024-00101');
-        toast('Logged in as Juan Dela Cruz');
+        localStorage.setItem('ee_session', '8240873');
+        toast('Logged in as Juan Dela Cruz (8240873)');
         location.href = 'dashboard.html';
       };
 
       $('#quickMaria').onclick = () => {
-        localStorage.setItem('ee_session', '2024-00102');
-        toast('Logged in as Maria Santos (Clearance Hold Demo)');
+        localStorage.setItem('ee_session', '8240874');
+        toast('Logged in as Maria Santos (8240874 - Clearance Hold Demo)');
+        location.href = 'dashboard.html';
+      };
+    }
+  };
+
+  // REGISTER
+  P.register = {
+    render() {
+      return `
+        <div class="auth">
+          <div class="card">
+            <div class="logo center">Enroll<span>Ease</span></div>
+            <h2 class="center" style="margin-top: 4px;">Student Registration</h2>
+            <p class="muted center" style="margin-bottom: 20px;">Link your 7-Digit University Student ID</p>
+            
+            <form id="regForm">
+              <label>Full Name</label>
+              <input type="text" id="regName" placeholder="Juan Dela Cruz" required>
+
+              <label>7-Digit Student ID</label>
+              <input type="text" id="regId" placeholder="e.g. 8240873" maxlength="7" pattern="\\d{7}" required>
+
+              <label>Institutional Email</label>
+              <input type="email" id="regEmail" placeholder="student@ctu.edu.ph" required>
+
+              <label>Create PIN or Password</label>
+              <input type="password" id="regPw" value="demo1234" required>
+
+              <div class="err" id="regErr"></div>
+
+              <button type="submit" class="btn" style="width: 100%; margin-top: 14px;">Complete Registration</button>
+              <p class="center" style="margin-top: 14px; font-size: 13px;">Already registered? <a href="login.html">Login here</a></p>
+            </form>
+          </div>
+        </div>
+      `;
+    },
+    init() {
+      $('#regForm').onsubmit = e => {
+        e.preventDefault();
+        const sid = $('#regId').value.trim();
+        const name = $('#regName').value.trim();
+        const email = $('#regEmail').value.trim();
+        if (!/^\d{7}$/.test(sid)) {
+          $('#regErr').textContent = 'Student ID must be exactly 7 digits (e.g. 8240873).';
+          return;
+        }
+        const students = DAL.get('students');
+        let existing = students.find(s => s.student_id === sid);
+        if (!existing) {
+          existing = {
+            student_id: sid,
+            first_name: name.split(' ')[0] || name,
+            last_name: name.split(' ').slice(1).join(' ') || 'Student',
+            full_name: name,
+            email: email,
+            program: 'BS Information Technology',
+            year_level: 3,
+            section: 'BSIT 3-A',
+            student_type: 'Regular',
+            tuition_status: 'Cleared / UniFAST',
+            balance_amount: 0.0,
+            erp_enrollment_status: 'Eligible for Enrollment',
+            contact: '+63 912 345 6789'
+          };
+          students.push(existing);
+          DAL.set('students', students);
+
+          const clearances = DAL.get('clearances');
+          const offices = [
+            { code: 'MEDICAL', name: 'Campus Clinic', room: 'Health Services Rm 101' },
+            { code: 'LIBRARY', name: 'University Library', room: 'Learning Resource Center 2F' },
+            { code: 'SAO_GUIDANCE', name: 'Student Affairs & Guidance', room: 'Student Center Rm 204' },
+            { code: 'CASHIER', name: 'Accounting & Cashier', room: 'Admin Bldg Window 4' },
+            { code: 'DEPT_LAB', name: 'IT Department Laboratories', room: 'Computer Lab 3' }
+          ];
+          offices.forEach(o => {
+            clearances.push({
+              student_id: sid,
+              office_code: o.code,
+              office_name: o.name,
+              location_room: o.room,
+              status: 'Cleared',
+              remarks: 'Initial registration cleared.'
+            });
+          });
+          DAL.set('clearances', clearances);
+
+          const progress = DAL.get('progress');
+          for (let st = 1; st <= 5; st++) {
+            progress.push({
+              student_id: sid,
+              step_number: st,
+              status: st === 1 ? 'completed' : st === 2 ? 'ready_to_book' : 'locked',
+              staff_notes: st === 1 ? 'All clearances cleared.' : ''
+            });
+          }
+          DAL.set('progress', progress);
+        }
+
+        localStorage.setItem('ee_session', sid);
+        toast(`Account registered! Logged in as ${name}.`);
         location.href = 'dashboard.html';
       };
     }
@@ -650,7 +806,7 @@
           </div>
           <h1>Welcome back, ${esc(student.full_name)}!</h1>
           <p>
-            ${student.program} • ${student.section} • Year Level ${student.year_level}
+            ${student.program} • ${student.section} • Year Level ${student.year_level} • ID: <b>${student.student_id}</b>
           </p>
           <p style="margin-top: 8px; font-weight: 600; opacity: 0.95;">
             ${myTicket ? `🎟️ Live Queue Ticket: ${myTicket.ticket_number} (${myTicket.status}) at ${myTicket.counter_window}` :
@@ -775,7 +931,6 @@
       `, 'dashboard');
     },
     init() {
-      // Setup click handlers for stepper items
       $$('.step-item').forEach(el => {
         el.onclick = () => {
           currentTrackerStep = parseInt(el.dataset.step, 10);
@@ -783,7 +938,6 @@
         };
       });
 
-      // Quick student switcher in demo bar
       const switchEl = $('#demoStudentSwitch');
       if (switchEl) {
         switchEl.onchange = () => {
@@ -808,7 +962,7 @@
         ${hasHold ? `
           <div class="card" style="border-left: 5px solid var(--er); margin-bottom: 20px; background: #fff5f5;">
             <h3 style="color: var(--er);">⚠️ Pre-Enrollment Clearance Notice</h3>
-            <p>Our Simulated ERP detected outstanding clearance hold(s) on your student record:</p>
+            <p>Our Simulated ERP detected outstanding clearance hold(s) on your student record (<b>ID: ${student.student_id}</b>):</p>
             <ul style="color: var(--er); font-weight: 600; margin: 8px 0 14px 20px;">
               ${clearances.filter(c => c.status === 'Hold').map(c => `
                 <li><b>${c.office_name}:</b> ${c.remarks} (${c.location_room})</li>
@@ -934,7 +1088,7 @@
             <h4 style="margin: 0 0 6px;">Important Instructions:</h4>
             <ul class="muted" style="margin: 0; padding-left: 20px; font-size: 13px;">
               <li>Arrive 10 minutes prior to your time window.</li>
-              <li>Have your School ID card and printed advising sheet ready.</li>
+              <li>Have your School ID card (ID: ${student.student_id}) and printed advising sheet ready.</li>
               <li>Present the reference pass or QR code at the counter scanner.</li>
             </ul>
           </div>
@@ -1007,6 +1161,8 @@
           </div>
 
           <dl style="text-align: left; margin: 20px 0;">
+            <dt>Student ID:</dt>
+            <dd>${appt.student_id}</dd>
             <dt>Purpose:</dt>
             <dd>${appt.purpose}</dd>
             <dt>Date & Time:</dt>
@@ -1065,7 +1221,7 @@
                   📅 ${formatDate(a.date)} • ⏰ ${a.time} • 🏢 ${a.counter_window}
                 </div>
                 <div style="font-size: 12px; font-family: monospace; color: var(--b); margin-top: 4px;">
-                  Ref: <b>${a.reference_code}</b>
+                  Ref: <b>${a.reference_code}</b> • Student ID: <b>${a.student_id}</b>
                 </div>
               </div>
               <div class="row">
@@ -1095,7 +1251,6 @@
           appt.status = 'Checked-In';
           DAL.set('appts', appts);
 
-          // Add to live queue
           const queue = DAL.get('queue');
           const prefix = appt.step_number === 2 ? 'ADV' : appt.step_number === 3 ? 'REG' : 'CSH';
           const ticketNumber = `${prefix}-${String(Math.floor(Math.random() * 70) + 10).padStart(3, '0')}`;
@@ -1259,7 +1414,7 @@
             <label>Full Name</label>
             <input type="text" id="profName" value="${esc(student.full_name)}">
 
-            <label>Student ID (Permanent)</label>
+            <label>Student ID (7-Digit)</label>
             <input type="text" value="${student.student_id}" disabled>
 
             <label>Academic Program</label>
@@ -1331,17 +1486,17 @@
 
         <div class="card" style="max-width: 680px; margin-bottom: 20px;">
           <h3>⚡ Demo Account Switcher</h3>
-          <p class="muted">Quickly switch between student personas for your project defense</p>
+          <p class="muted">Quickly switch between 7-digit student personas for your project defense</p>
           
           <div style="display: flex; flex-direction: column; gap: 10px; margin-top: 14px;">
             <button class="btn alt sm" id="setJuan">
-              👤 Juan Dela Cruz (Eligible Regular Student • All Clearances Passed)
+              👤 Juan Dela Cruz (8240873 • Regular Student • All Clearances Passed)
             </button>
             <button class="btn alt sm" id="setMaria">
-              ⚠️ Maria Santos (Simulated Clearance Hold • Medical & Library)
+              ⚠️ Maria Santos (8240874 • Simulated Clearance Hold • Medical & Library)
             </button>
             <button class="btn alt sm" id="setCarlo">
-              🎓 Carlo Mendoza (Transferee Student • 2nd Year)
+              🎓 Carlo Mendoza (8240875 • Transferee Student • 2nd Year)
             </button>
           </div>
         </div>
@@ -1372,20 +1527,20 @@
       };
 
       $('#setJuan').onclick = () => {
-        localStorage.setItem('ee_session', '2024-00101');
-        toast('Switched to Juan Dela Cruz');
+        localStorage.setItem('ee_session', '8240873');
+        toast('Switched to Juan Dela Cruz (8240873)');
         location.href = 'dashboard.html';
       };
 
       $('#setMaria').onclick = () => {
-        localStorage.setItem('ee_session', '2024-00102');
-        toast('Switched to Maria Santos');
+        localStorage.setItem('ee_session', '8240874');
+        toast('Switched to Maria Santos (8240874)');
         location.href = 'dashboard.html';
       };
 
       $('#setCarlo').onclick = () => {
-        localStorage.setItem('ee_session', '2024-00103');
-        toast('Switched to Carlo Mendoza');
+        localStorage.setItem('ee_session', '8240875');
+        toast('Switched to Carlo Mendoza (8240875)');
         location.href = 'dashboard.html';
       };
 
@@ -1399,9 +1554,10 @@
 
       $('#btnResetData').onclick = () => {
         if (!confirm('Reset all demo records back to clean state?')) return;
-        localStorage.removeItem('ee_seeded_v3');
+        localStorage.removeItem('ee_seeded_v4');
+        localStorage.removeItem('ee_session');
         initStorage();
-        toast('Demo data refreshed!');
+        toast('Demo data refreshed with 7-digit IDs!');
         location.href = 'dashboard.html';
       };
     }
@@ -1432,7 +1588,6 @@
       }
     }
 
-    // Attach burger menu toggle
     const burger = $('#burgerBtn');
     const side = $('#sideNav');
     if (burger && side) {
