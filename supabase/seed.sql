@@ -3,6 +3,13 @@
 -- Domain 1: Simulated School ERP (erp_sis_*)
 -- Domain 2: EnrollEase Operational DB (enrollease_*)
 -- Student ID Format: 7 Digits (e.g. 8240873)
+-- Real Enrollment Flow:
+--   Step 1: Department Head Advising (IT, BIT, HM, EDUC, IE) - No Queuing
+--   Step 2: Campus Clinic Clearance - Live Queuing Starts
+--   Step 3: Student Affairs Office (SAO) Clearance - Live Queuing
+--   Step 4: University Library Clearance - Live Queuing
+--   Step 5: Cashier & Accounting Assessment - Live Queuing
+--   Step 6: Registrar Document Evaluation & COR Printing - Live Queuing
 -- ============================================================================
 
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
@@ -22,8 +29,8 @@ CREATE TABLE erp_sis_students (
     full_name TEXT NOT NULL,
     email TEXT UNIQUE NOT NULL,
     program TEXT NOT NULL DEFAULT 'BS Information Technology',
-    year_level INT NOT NULL DEFAULT 3,
-    section TEXT NOT NULL DEFAULT 'BSIT 3-A',
+    year_level INT NOT NULL DEFAULT 2,
+    section TEXT NOT NULL DEFAULT 'BSIT 2-A',
     student_type TEXT NOT NULL DEFAULT 'Regular', -- 'Regular', 'Irregular', 'Freshman', 'Transferee'
     tuition_status TEXT NOT NULL DEFAULT 'Cleared / UniFAST', -- 'Cleared / UniFAST', 'With Balance', 'Pending Assessment'
     balance_amount NUMERIC(10,2) NOT NULL DEFAULT 0.00,
@@ -34,7 +41,7 @@ CREATE TABLE erp_sis_students (
 CREATE TABLE erp_sis_clearances (
     clearance_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     student_id TEXT NOT NULL REFERENCES erp_sis_students(student_id) ON DELETE CASCADE,
-    office_code TEXT NOT NULL, -- 'MEDICAL', 'LIBRARY', 'SAO_GUIDANCE', 'CASHIER', 'DEPT_LAB'
+    office_code TEXT NOT NULL, -- 'DEPT_HEAD', 'CLINIC', 'SAO', 'LIBRARY', 'CASHIER'
     office_name TEXT NOT NULL,
     location_room TEXT NOT NULL,
     status TEXT NOT NULL DEFAULT 'Cleared', -- 'Cleared', 'Pending', 'Hold'
@@ -69,7 +76,7 @@ CREATE TABLE enrollease_users (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     student_id TEXT UNIQUE NOT NULL,
     pin_or_password TEXT NOT NULL DEFAULT 'demo1234',
-    role TEXT NOT NULL DEFAULT 'student', -- 'student', 'staff_advising', 'staff_registrar', 'staff_cashier', 'admin'
+    role TEXT NOT NULL DEFAULT 'student', -- 'student', 'staff_clinic', 'staff_sao', 'staff_library', 'staff_cashier', 'staff_registrar', 'admin'
     notification_prefs JSONB DEFAULT '{"sms": true, "sound": true, "browser": true}'::jsonb,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
@@ -186,9 +193,10 @@ DECLARE
     v_has_hold BOOLEAN;
     v_all_cleared BOOLEAN;
     v_hold_count INT;
+    v_clinic_hold BOOLEAN;
+    v_lib_hold BOOLEAN;
     v_result JSONB;
 BEGIN
-    -- Fetch student
     SELECT * INTO v_student FROM erp_sis_students WHERE student_id = p_student_id;
     IF NOT FOUND THEN
         RETURN jsonb_build_object('success', false, 'error', 'Student not found in ERP');
@@ -198,47 +206,35 @@ BEGIN
     SELECT COUNT(*) INTO v_hold_count FROM erp_sis_clearances 
     WHERE student_id = p_student_id AND status = 'Hold';
 
+    SELECT EXISTS(SELECT 1 FROM erp_sis_clearances WHERE student_id = p_student_id AND office_code = 'CLINIC' AND status = 'Hold') INTO v_clinic_hold;
+    SELECT EXISTS(SELECT 1 FROM erp_sis_clearances WHERE student_id = p_student_id AND office_code = 'LIBRARY' AND status = 'Hold') INTO v_lib_hold;
+
     v_has_hold := (v_hold_count > 0);
     v_all_cleared := NOT v_has_hold;
 
-    -- Auto-synchronize step 1 & step 2 progress
+    -- If holds exist, reflect in progress
+    IF v_clinic_hold THEN
+        INSERT INTO enrollease_student_progress (student_id, step_number, status, staff_notes, updated_at)
+        VALUES (p_student_id, 2, 'action_required', 'Medical clearance hold detected. Visit Campus Clinic.', NOW())
+        ON CONFLICT (student_id, step_number)
+        DO UPDATE SET status = 'action_required', staff_notes = 'Medical clearance hold pending.', updated_at = NOW();
+    END IF;
+
+    IF v_lib_hold THEN
+        INSERT INTO enrollease_student_progress (student_id, step_number, status, staff_notes, updated_at)
+        VALUES (p_student_id, 4, 'action_required', 'Library clearance hold detected. Settle library liabilities.', NOW())
+        ON CONFLICT (student_id, step_number)
+        DO UPDATE SET status = 'action_required', staff_notes = 'Library liabilities pending.', updated_at = NOW();
+    END IF;
+
     IF v_has_hold THEN
-        -- Step 1 requires action
-        INSERT INTO enrollease_student_progress (student_id, step_number, status, staff_notes, updated_at)
-        VALUES (p_student_id, 1, 'action_required', 'Outstanding clearance hold detected. Visit issuing offices.', NOW())
-        ON CONFLICT (student_id, step_number)
-        DO UPDATE SET status = 'action_required', staff_notes = 'Clearance holds pending.', updated_at = NOW();
-
-        -- Step 2 remains locked until Step 1 is cleared
-        INSERT INTO enrollease_student_progress (student_id, step_number, status, staff_notes, updated_at)
-        VALUES (p_student_id, 2, 'locked', 'Locked: Resolve Step 1 clearances first.', NOW())
-        ON CONFLICT (student_id, step_number)
-        DO UPDATE SET status = 'locked', staff_notes = 'Locked: Resolve Step 1 clearances first.', updated_at = NOW();
-
         UPDATE erp_sis_students SET erp_enrollment_status = 'Clearance Hold' WHERE student_id = p_student_id;
     ELSE
-        -- Step 1 is Completed!
-        INSERT INTO enrollease_student_progress (student_id, step_number, status, staff_notes, updated_at)
-        VALUES (p_student_id, 1, 'completed', 'All university clearances cleared.', NOW())
-        ON CONFLICT (student_id, step_number)
-        DO UPDATE SET status = 'completed', staff_notes = 'All university clearances cleared.', updated_at = NOW();
-
-        -- Step 2 is ready to book or in progress
-        INSERT INTO enrollease_student_progress (student_id, step_number, status, staff_notes, updated_at)
-        VALUES (p_student_id, 2, 'ready_to_book', 'Ready for Department Curriculum Advising.', NOW())
-        ON CONFLICT (student_id, step_number)
-        DO UPDATE SET status = CASE 
-            WHEN enrollease_student_progress.status = 'completed' THEN 'completed'
-            WHEN enrollease_student_progress.status = 'in_queue' THEN 'in_queue'
-            ELSE 'ready_to_book'
-        END, updated_at = NOW();
-
         IF v_student.erp_enrollment_status = 'Clearance Hold' THEN
             UPDATE erp_sis_students SET erp_enrollment_status = 'Eligible for Enrollment' WHERE student_id = p_student_id;
         END IF;
     END IF;
 
-    -- Return consolidated student snapshot
     SELECT jsonb_build_object(
         'success', true,
         'student', row_to_json(v_student),
@@ -254,16 +250,17 @@ END;
 $$;
 
 -- ----------------------------------------------------------------------------
--- 6. SEED DATA (7-Digit Student IDs: 8240871, 8240872, 8240873, 8240874, 8240875, 8240876)
+-- 6. SEED DATA (Real 6-Step University Enrollment Flow)
 -- ----------------------------------------------------------------------------
 
--- Workflow Steps (The 5 Standard Stages of Campus Enrollment)
+-- Workflow Steps (Step 1 Department Head has NO QUEUING; Queuing starts at Step 2 Clinic)
 INSERT INTO enrollease_workflow_steps (step_number, step_title, office_name, building_room, clear_instructions, required_documents) VALUES
-(1, 'Pre-Enrollment Clearance Verification', 'Campus Clearance Offices', 'Clinic, Library, SAO, Cashier', 'Ensure all 5 campus clearances are marked Cleared. If you have a Hold remark, visit the corresponding office to settle your obligation.', ARRAY['Valid School ID', 'Clearance Slip / Medical Slip', 'Library Return Receipt']),
-(2, 'Department Curriculum Advising & Subject Loading', 'Department of Computer Studies', 'IT Faculty Room - Room 304', 'Meet with your academic adviser to verify prerequisites, lock in your subjects (including PC 316), and evaluate your curriculum checklist.', ARRAY['Curriculum Checklist', 'Previous Semester Grade Slip', 'Advising Form']),
-(3, 'Registrar Document Evaluation & Encoding', 'Office of the University Registrar', 'Admin Building - Windows 1 & 2', 'Submit your advised subject loading form for official system encoding into the university database.', ARRAY['Signed Advising Form', 'Good Moral Certificate (if required)', 'PSA Birth Certificate (freshmen)']),
-(4, 'Cashier / UniFAST Assessment', 'Accounting & Cashier Office', 'Admin Building - Windows 3 & 4', 'Verify your UniFAST Free Higher Education eligibility or pay assessed fees if irregular/exceeded maximum residency.', ARRAY['Encoded Assessment Slip', 'Certificate of Indigency (if applicable)', 'UniFAST Annex A Form']),
-(5, 'Official COR Printing & School ID Validation', 'Registrar Release Section', 'Admin Building - Window 5', 'Claim your official stamped Certificate of Registration (COR) and validate your student ID sticker for the new semester.', ARRAY['Validated Assessment Form', 'Official Receipt (if paid)', 'Current School ID Card'])
+(1, 'Department Head Advising & Evaluation', 'Department Head Office', 'Department Office (IT, BIT, HM, EDUC, IE)', 'Consult with your Department Head or assigned faculty adviser for curriculum evaluation and subject loading approval. Note: Direct walk-in consultation; no queuing ticket required.', ARRAY['Curriculum Checklist', 'Previous Semester Grade Slip', 'Pre-Enrollment Advising Sheet']),
+(2, 'Campus Clinic Clearance', 'Campus Health Services', 'Health Services Building - Clinic Windows 1 & 2', 'Queue up at the Campus Clinic for annual physical examination verification and medical clearance slip validation.', ARRAY['Valid Student ID Card', 'Medical Examination Slip', 'Health Declaration Form']),
+(3, 'Student Affairs Office (SAO) Clearance', 'Student Affairs & Guidance Office', 'Student Center Building - Room 204', 'Queue up at the SAO counter for student conduct review, disciplinary clearance, and good moral verification.', ARRAY['Valid Student ID Card', 'SAO Clearance Slip', 'Student Handbook']),
+(4, 'University Library Clearance', 'University Library', 'Learning Resource Center - 2nd Floor Circulation Desk', 'Queue up at the Library circulation desk to verify book returns, clear overdue liabilities, and update library privileges.', ARRAY['Valid Student ID Card', 'Library Borrower Card', 'Return Receipts (if applicable)']),
+(5, 'Cashier & Accounting Assessment', 'Accounting & Cashier Office', 'Administration Building - Cashier Windows 3 & 4', 'Queue up at the Cashier counter for UniFAST Free Higher Education billing validation or payment of assessed miscellaneous fees.', ARRAY['Encoded Assessment Form', 'UniFAST Billing Sheet', 'Official Payment Slip (if paying balance)']),
+(6, 'Registrar Document Evaluation & COR Printing', 'Office of the University Registrar', 'Administration Building - Registrar Windows 1 & 2', 'Queue up at the Registrar counter for official database encoding, official Certificate of Registration (COR) printing, and student ID semester validation sticker. Enrollment complete.', ARRAY['Signed Department Advising Slip', 'Validated Cashier Assessment Slip', 'Valid Student ID Card'])
 ON CONFLICT (step_number) DO UPDATE SET
     step_title = EXCLUDED.step_title,
     office_name = EXCLUDED.office_name,
@@ -271,52 +268,52 @@ ON CONFLICT (step_number) DO UPDATE SET
     clear_instructions = EXCLUDED.clear_instructions,
     required_documents = EXCLUDED.required_documents;
 
--- Students Master (ALL students in live queue and appointments MUST be defined here!)
+-- Students Master
 INSERT INTO erp_sis_students (student_id, first_name, last_name, full_name, email, program, year_level, section, student_type, tuition_status, balance_amount, erp_enrollment_status) VALUES
-('8240871', 'Andrea Nicole', 'Lim', 'Andrea Nicole Lim', 'andrea.lim@ctu.edu.ph', 'BS Information Technology', 3, 'BSIT 3-A', 'Regular', 'Cleared / UniFAST', 0.00, 'Eligible for Enrollment'),
-('8240872', 'Samantha Rose', 'Cruz', 'Samantha Rose Cruz', 'samantha.cruz@ctu.edu.ph', 'BS Information Technology', 3, 'BSIT 3-A', 'Regular', 'Cleared / UniFAST', 0.00, 'Eligible for Enrollment'),
-('8240873', 'Juan', 'Dela Cruz', 'Juan Dela Cruz', 'juan.delacruz@ctu.edu.ph', 'BS Information Technology', 3, 'BSIT 3-A', 'Regular', 'Cleared / UniFAST', 0.00, 'Eligible for Enrollment'),
-('8240874', 'Maria', 'Santos', 'Maria Santos', 'maria.santos@ctu.edu.ph', 'BS Information Technology', 3, 'BSIT 3-B', 'Regular', 'With Balance', 1250.00, 'Clearance Hold'),
+('8240871', 'Andrea Nicole', 'Lim', 'Andrea Nicole Lim', 'andrea.lim@ctu.edu.ph', 'BS Information Technology', 2, 'BSIT 2-A', 'Regular', 'Cleared / UniFAST', 0.00, 'Eligible for Enrollment'),
+('8240872', 'Samantha Rose', 'Cruz', 'Samantha Rose Cruz', 'samantha.cruz@ctu.edu.ph', 'BS Information Technology', 2, 'BSIT 2-A', 'Regular', 'Cleared / UniFAST', 0.00, 'Eligible for Enrollment'),
+('8240873', 'Juan', 'Dela Cruz', 'Juan Dela Cruz', 'juan.delacruz@ctu.edu.ph', 'BS Information Technology', 2, 'BSIT 2-A', 'Regular', 'Cleared / UniFAST', 0.00, 'Eligible for Enrollment'),
+('8240874', 'Maria', 'Santos', 'Maria Santos', 'maria.santos@ctu.edu.ph', 'BS Information Technology', 2, 'BSIT 2-B', 'Regular', 'With Balance', 1250.00, 'Clearance Hold'),
 ('8240875', 'Carlo', 'Mendoza', 'Carlo Mendoza', 'carlo.mendoza@ctu.edu.ph', 'BS Information Technology', 2, 'BSIT 2-A', 'Transferee', 'Cleared / UniFAST', 0.00, 'Advised'),
-('8240876', 'Mark Kenneth', 'Bautista', 'Mark Kenneth Bautista', 'mark.bautista@ctu.edu.ph', 'BS Information Technology', 3, 'BSIT 3-B', 'Regular', 'Cleared / UniFAST', 0.00, 'Eligible for Enrollment')
+('8240876', 'Mark Kenneth', 'Bautista', 'Mark Kenneth Bautista', 'mark.bautista@ctu.edu.ph', 'BS Information Technology', 2, 'BSIT 2-B', 'Regular', 'Cleared / UniFAST', 0.00, 'Eligible for Enrollment')
 ON CONFLICT (student_id) DO UPDATE SET
     full_name = EXCLUDED.full_name,
     tuition_status = EXCLUDED.tuition_status,
     balance_amount = EXCLUDED.balance_amount,
     erp_enrollment_status = EXCLUDED.erp_enrollment_status;
 
--- Clearances for 8240873 (Juan Dela Cruz - All Cleared)
+-- Clearances for 8240873 (Juan Dela Cruz - 2nd Year)
 INSERT INTO erp_sis_clearances (student_id, office_code, office_name, location_room, status, remarks, updated_at) VALUES
-('8240873', 'MEDICAL', 'Campus Clinic', 'Health Services Bldg Rm 101', 'Cleared', 'Annual physical exam completed.', NOW()),
+('8240873', 'DEPT_HEAD', 'IT Department Head', 'Department Office Room 304', 'Cleared', 'Curriculum subjects approved.', NOW()),
+('8240873', 'CLINIC', 'Campus Clinic', 'Health Services Bldg Rm 101', 'Cleared', 'Annual physical exam completed.', NOW()),
+('8240873', 'SAO', 'Student Affairs & Guidance', 'Student Center Rm 204', 'Cleared', 'Good standing and conduct verified.', NOW()),
 ('8240873', 'LIBRARY', 'University Library', 'Learning Resource Center 2F', 'Cleared', 'No overdue books or liabilities.', NOW()),
-('8240873', 'SAO_GUIDANCE', 'Student Affairs & Guidance', 'Student Center Rm 204', 'Cleared', 'Good standing and conduct verified.', NOW()),
-('8240873', 'CASHIER', 'Accounting & Cashier', 'Admin Bldg Window 4', 'Cleared', 'UniFAST Free Higher Education subsidized.', NOW()),
-('8240873', 'DEPT_LAB', 'IT Department Laboratories', 'Computer Lab 3', 'Cleared', 'No missing hardware or laboratory liabilities.', NOW());
+('8240873', 'CASHIER', 'Accounting & Cashier', 'Admin Bldg Window 4', 'Cleared', 'UniFAST Free Higher Education subsidized.', NOW());
 
--- Clearances for 8240874 (Maria Santos - Has Holds for demonstration)
+-- Clearances for 8240874 (Maria Santos - Has Holds at Clinic and Library)
 INSERT INTO erp_sis_clearances (student_id, office_code, office_name, location_room, status, remarks, updated_at) VALUES
-('8240874', 'MEDICAL', 'Campus Clinic', 'Health Services Bldg Rm 101', 'Hold', 'Submit signed Medical Examination Slip at Campus Clinic.', NOW()),
+('8240874', 'DEPT_HEAD', 'IT Department Head', 'Department Office Room 304', 'Cleared', 'Advising checklist signed.', NOW()),
+('8240874', 'CLINIC', 'Campus Clinic', 'Health Services Bldg Rm 101', 'Hold', 'Submit signed Medical Examination Slip at Campus Clinic.', NOW()),
+('8240874', 'SAO', 'Student Affairs & Guidance', 'Student Center Rm 204', 'Cleared', 'Good standing verified.', NOW()),
 ('8240874', 'LIBRARY', 'University Library', 'Learning Resource Center 2F', 'Hold', 'Return borrowed Arduino Kit and Networking textbook.', NOW()),
-('8240874', 'SAO_GUIDANCE', 'Student Affairs & Guidance', 'Student Center Rm 204', 'Cleared', 'Good standing verified.', NOW()),
-('8240874', 'CASHIER', 'Accounting & Cashier', 'Admin Bldg Window 4', 'Cleared', 'Assessed for UniFAST subsidy.', NOW()),
-('8240874', 'DEPT_LAB', 'IT Department Laboratories', 'Computer Lab 3', 'Cleared', 'Equipment return signed.', NOW());
+('8240874', 'CASHIER', 'Accounting & Cashier', 'Admin Bldg Window 4', 'Cleared', 'Assessed for UniFAST subsidy.', NOW());
 
--- Clearances for 8240875 (Carlo Mendoza)
+-- Clearances for 8240875 (Carlo Mendoza - Transferee)
 INSERT INTO erp_sis_clearances (student_id, office_code, office_name, location_room, status, remarks, updated_at) VALUES
-('8240875', 'MEDICAL', 'Campus Clinic', 'Health Services Bldg Rm 101', 'Cleared', 'Health certificate valid.', NOW()),
+('8240875', 'DEPT_HEAD', 'IT Department Head', 'Department Office Room 304', 'Cleared', 'Transferee subject crediting approved.', NOW()),
+('8240875', 'CLINIC', 'Campus Clinic', 'Health Services Bldg Rm 101', 'Cleared', 'Health certificate valid.', NOW()),
+('8240875', 'SAO', 'Student Affairs & Guidance', 'Student Center Rm 204', 'Cleared', 'Transferee orientation completed.', NOW()),
 ('8240875', 'LIBRARY', 'University Library', 'Learning Resource Center 2F', 'Cleared', 'Transferee library clearance processed.', NOW()),
-('8240875', 'SAO_GUIDANCE', 'Student Affairs & Guidance', 'Student Center Rm 204', 'Cleared', 'Orientation completed.', NOW()),
-('8240875', 'CASHIER', 'Accounting & Cashier', 'Admin Bldg Window 4', 'Cleared', 'UniFAST verified.', NOW()),
-('8240875', 'DEPT_LAB', 'IT Department Laboratories', 'Computer Lab 3', 'Cleared', 'Cleared.', NOW());
+('8240875', 'CASHIER', 'Accounting & Cashier', 'Admin Bldg Window 4', 'Cleared', 'UniFAST verified.', NOW());
 
 -- Clearances for 8240871, 8240872, 8240876
 INSERT INTO erp_sis_clearances (student_id, office_code, office_name, location_room, status, remarks, updated_at) VALUES
-('8240871', 'MEDICAL', 'Campus Clinic', 'Health Services Bldg Rm 101', 'Cleared', 'Cleared.', NOW()),
-('8240871', 'LIBRARY', 'University Library', 'Learning Resource Center 2F', 'Cleared', 'Cleared.', NOW()),
-('8240872', 'MEDICAL', 'Campus Clinic', 'Health Services Bldg Rm 101', 'Cleared', 'Cleared.', NOW()),
-('8240872', 'LIBRARY', 'University Library', 'Learning Resource Center 2F', 'Cleared', 'Cleared.', NOW()),
-('8240876', 'MEDICAL', 'Campus Clinic', 'Health Services Bldg Rm 101', 'Cleared', 'Cleared.', NOW()),
-('8240876', 'LIBRARY', 'University Library', 'Learning Resource Center 2F', 'Cleared', 'Cleared.', NOW());
+('8240871', 'DEPT_HEAD', 'IT Department Head', 'Department Office Room 304', 'Cleared', 'Cleared.', NOW()),
+('8240871', 'CLINIC', 'Campus Clinic', 'Health Services Bldg Rm 101', 'Cleared', 'Cleared.', NOW()),
+('8240872', 'DEPT_HEAD', 'IT Department Head', 'Department Office Room 304', 'Cleared', 'Cleared.', NOW()),
+('8240872', 'CLINIC', 'Campus Clinic', 'Health Services Bldg Rm 101', 'Cleared', 'Cleared.', NOW()),
+('8240876', 'DEPT_HEAD', 'IT Department Head', 'Department Office Room 304', 'Cleared', 'Cleared.', NOW()),
+('8240876', 'CLINIC', 'Campus Clinic', 'Health Services Bldg Rm 101', 'Cleared', 'Cleared.', NOW());
 
 -- Curriculum Subjects (Including PC 316)
 INSERT INTO erp_sis_curriculum_subjects (student_id, subject_code, descriptive_title, units, schedule_block, is_advised, semester, school_year) VALUES
@@ -341,44 +338,49 @@ INSERT INTO enrollease_users (student_id, pin_or_password, role) VALUES
 ('8240874', 'demo1234', 'student'),
 ('8240875', 'demo1234', 'student'),
 ('8240876', 'demo1234', 'student'),
-('STAFF-ADV-01', 'staff123', 'staff_advising'),
-('STAFF-REG-01', 'staff123', 'staff_registrar'),
-('STAFF-CSH-01', 'staff123', 'staff_cashier')
+('STAFF-CLN-01', 'staff123', 'staff_clinic'),
+('STAFF-SAO-01', 'staff123', 'staff_sao'),
+('STAFF-LIB-01', 'staff123', 'staff_library'),
+('STAFF-CSH-01', 'staff123', 'staff_cashier'),
+('STAFF-REG-01', 'staff123', 'staff_registrar')
 ON CONFLICT (student_id) DO NOTHING;
 
--- Initial Progress for Juan Dela Cruz (8240873)
+-- Initial Progress for Juan Dela Cruz (8240873 - 2nd Year)
 INSERT INTO enrollease_student_progress (student_id, step_number, status, staff_notes) VALUES
-('8240873', 1, 'completed', 'All 5 offices signed and cleared online.'),
-('8240873', 2, 'in_queue', 'Waiting for IT Advising Window 1.'),
-('8240873', 3, 'locked', 'Pending Step 2 advising signature.'),
-('8240873', 4, 'locked', 'Pending registrar evaluation.'),
-('8240873', 5, 'locked', 'Pending assessment.');
+('8240873', 1, 'completed', 'Advised and evaluated by IT Department Head.'),
+('8240873', 2, 'in_queue', 'Waiting in live queue at Campus Clinic.'),
+('8240873', 3, 'locked', 'Pending Step 2 Clinic clearance.'),
+('8240873', 4, 'locked', 'Pending Step 3 SAO clearance.'),
+('8240873', 5, 'locked', 'Pending Step 4 Library clearance.'),
+('8240873', 6, 'locked', 'Pending Step 5 Cashier assessment.');
 
 -- Initial Progress for Maria Santos (8240874)
 INSERT INTO enrollease_student_progress (student_id, step_number, status, staff_notes) VALUES
-('8240874', 1, 'action_required', 'Clinic & Library clearance holds must be resolved first.'),
-('8240874', 2, 'locked', 'Locked due to pre-enrollment clearance hold.'),
-('8240874', 3, 'locked', 'Locked.'),
-('8240874', 4, 'locked', 'Locked.'),
-('8240874', 5, 'locked', 'Locked.');
+('8240874', 1, 'completed', 'Department Head evaluation signed.'),
+('8240874', 2, 'action_required', 'Clinic clearance hold: Medical slip required.'),
+('8240874', 3, 'ready_to_book', 'SAO good standing cleared.'),
+('8240874', 4, 'action_required', 'Library clearance hold: Return borrowed Arduino kit.'),
+('8240874', 5, 'locked', 'Pending clearance resolution.'),
+('8240874', 6, 'locked', 'Pending assessment.');
 
 -- Initial Progress for Carlo Mendoza (8240875)
 INSERT INTO enrollease_student_progress (student_id, step_number, status, staff_notes) VALUES
-('8240875', 1, 'completed', 'Cleared.'),
-('8240875', 2, 'completed', 'Advised by Dept Chair.'),
-('8240875', 3, 'ready_to_book', 'Ready for Registrar Encoding.'),
-('8240875', 4, 'locked', 'Locked.'),
-('8240875', 5, 'locked', 'Locked.');
+('8240875', 1, 'completed', 'Transferee advising signed by Department Head.'),
+('8240875', 2, 'completed', 'Clinic physical exam passed.'),
+('8240875', 3, 'completed', 'SAO orientation verified.'),
+('8240875', 4, 'completed', 'Library clearance cleared.'),
+('8240875', 5, 'completed', 'UniFAST free tuition assessed.'),
+('8240875', 6, 'ready_to_book', 'Ready for Registrar Encoding & COR Release.');
 
 -- Appointments
 INSERT INTO enrollease_appointments (reference_code, student_id, step_number, purpose, status) VALUES
-('EE-2026-8841', '8240873', 2, 'Curriculum Advising & PC 316 Loading', 'Checked-In'),
-('EE-2026-9022', '8240875', 3, 'Registrar Document Verification', 'Upcoming');
+('EE-2026-8841', '8240873', 2, 'Campus Clinic Clearance', 'Checked-In'),
+('EE-2026-9022', '8240875', 6, 'Registrar Document Verification & COR Printing', 'Upcoming');
 
--- Live Queue Tickets (Foreign key student_id matches existing erp_sis_students records!)
+-- Live Queue Tickets (Queue starts at Step 2 Clinic!)
 INSERT INTO enrollease_live_queue (ticket_number, student_id, student_name, step_number, counter_window, priority_type, status, estimated_wait_mins, called_at) VALUES
-('ADV-001', '8240871', 'Andrea Nicole Lim', 2, 'Window 1 - IT Advising', 'Booked Appointment', 'Serving', 0, NOW() - INTERVAL '4 minutes'),
-('ADV-004', '8240873', 'Juan Dela Cruz', 2, 'Window 1 - IT Advising', 'Booked Appointment', 'Waiting', 8, NULL),
-('ADV-007', '8240876', 'Mark Kenneth Bautista', 2, 'Window 1 - IT Advising', 'Regular Walk-In', 'Waiting', 16, NULL),
-('REG-014', '8240872', 'Samantha Rose Cruz', 3, 'Window 2 - Registrar', 'Booked Appointment', 'Serving', 0, NOW() - INTERVAL '2 minutes'),
-('REG-019', '8240875', 'Carlo Mendoza', 3, 'Window 2 - Registrar', 'Booked Appointment', 'Waiting', 12, NULL);
+('CLN-001', '8240871', 'Andrea Nicole Lim', 2, 'Clinic Window 1', 'Booked Appointment', 'Serving', 0, NOW() - INTERVAL '4 minutes'),
+('CLN-004', '8240873', 'Juan Dela Cruz', 2, 'Clinic Window 1', 'Booked Appointment', 'Waiting', 8, NULL),
+('CLN-007', '8240876', 'Mark Kenneth Bautista', 2, 'Clinic Window 1', 'Regular Walk-In', 'Waiting', 16, NULL),
+('SAO-012', '8240872', 'Samantha Rose Cruz', 3, 'SAO Window 1', 'Booked Appointment', 'Serving', 0, NOW() - INTERVAL '2 minutes'),
+('REG-019', '8240875', 'Carlo Mendoza', 6, 'Registrar Window 2', 'Booked Appointment', 'Waiting', 12, NULL);

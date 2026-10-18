@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
@@ -12,10 +12,10 @@
     <!-- Demo Switcher Top Bar -->
     <div class="demo-bar">
       <div class="demo-bar-left">
-        <span class="demo-bar-label">âš¡ Live Defense Switcher:</span>
-        <a href="dashboard.html" class="demo-pill">ðŸŽ“ Student Portal</a>
-        <a href="staff-terminal.html" class="demo-pill active">ðŸ–¥ï¸ Staff Terminal</a>
-        <a href="erp-simulator.html" class="demo-pill">ðŸ—„ï¸ SIS/ERP Simulator</a>
+        <span class="demo-bar-label">Live Defense Switcher:</span>
+        <a href="dashboard.html" class="demo-pill">Student Portal</a>
+        <a href="staff-terminal.html" class="demo-pill active">Staff Terminal</a>
+        <a href="erp-simulator.html" class="demo-pill">SIS/ERP Simulator</a>
       </div>
       <div class="demo-bar-left">
         <span class="demo-sync-badge">
@@ -33,10 +33,14 @@
       </div>
       <div class="row">
         <label style="margin: 0;">Counter Window:</label>
-        <select id="selWindow" style="width: auto; min-width: 240px; font-weight: 700;">
-          <option value="Window 1 - IT Advising">Window 1 - IT Advising (Step 2)</option>
-          <option value="Window 2 - Registrar">Window 2 - Registrar (Step 3)</option>
-          <option value="Window 3 - Cashier">Window 3 - Cashier / UniFAST (Step 4)</option>
+        <select id="selWindow" style="width: auto; min-width: 280px; font-weight: 700;">
+          <option value="Clinic Window 1">Clinic Window 1 (Step 2 - Campus Clinic)</option>
+          <option value="Clinic Window 2">Clinic Window 2 (Step 2 - Campus Clinic)</option>
+          <option value="SAO Window 1">SAO Window 1 (Step 3 - Student Affairs)</option>
+          <option value="Library Counter">Library Counter (Step 4 - University Library)</option>
+          <option value="Cashier Window 3">Cashier Window 3 (Step 5 - Cashier & Accounting)</option>
+          <option value="Registrar Window 1">Registrar Window 1 (Step 6 - University Registrar)</option>
+          <option value="Registrar Window 2">Registrar Window 2 (Step 6 - University Registrar)</option>
         </select>
       </div>
     </div>
@@ -62,21 +66,21 @@
 
           <div style="display: flex; flex-direction: column; gap: 10px;">
             <button class="btn lg success" id="btnCallNext" style="font-size: 16px;">
-              ðŸ“¢ Call Next Ticket
+              Call Next Ticket
             </button>
             <button class="btn alt" id="btnRecall">
-              ðŸ”” Recall Current Ticket (Play Chime)
+              Recall Current Ticket (Play Chime)
             </button>
             <button class="btn" id="btnCompleteAdvance">
-              âœ… Complete Step & Unlock Next Stage
+              Complete Step and Unlock Next Stage
             </button>
             <button class="btn warning" id="btnPutHold">
-              â¸ï¸ Put Ticket on Hold
+              Put Ticket on Hold
             </button>
           </div>
 
           <div style="margin-top: 24px; padding-top: 16px; border-top: 1px solid var(--ln);">
-            <h4>âž• Issue Quick Walk-In Ticket</h4>
+            <h4>Issue Quick Walk-In Ticket</h4>
             <div style="display: flex; gap: 8px; margin-top: 8px;">
               <input type="text" id="walkinName" placeholder="Student Full Name" style="flex: 2;">
               <button class="btn alt sm" id="btnIssueWalkin">Issue Ticket</button>
@@ -117,7 +121,8 @@
 
   </div>
 
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script><script src="js/config.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="js/config.js"></script>
   <script>
     (function() {
       const $ = s => document.querySelector(s);
@@ -158,14 +163,14 @@
       function renderTerminal() {
         const currentWindow = selWindow.value;
         const allQueue = getQueue();
-        const windowQueue = allQueue.filter(q => q.counter_window.includes(currentWindow.split(' - ')[0]) || q.counter_window === currentWindow);
+        const windowQueue = allQueue.filter(q => q.counter_window.includes(currentWindow.split(' (')[0]) || q.counter_window === currentWindow);
 
         // Serving ticket
         const serving = windowQueue.find(q => q.status === 'Serving');
         if (serving) {
           $('#txtServingTicket').textContent = serving.ticket_number;
           $('#txtServingName').textContent = serving.student_name;
-          $('#txtServingInfo').textContent = `Student ID: ${serving.student_id} â€¢ ${serving.counter_window}`;
+          $('#txtServingInfo').textContent = `Student ID: ${serving.student_id} | ${serving.counter_window}`;
           $('#txtServingType').style.display = 'inline-block';
           $('#txtServingType').textContent = serving.priority_type;
         } else {
@@ -224,16 +229,16 @@
       function callSpecificTicket(queueId) {
         const queue = getQueue();
         const currentWindow = selWindow.value;
-        // Reset currently serving to completed or waiting
+        const windowBase = currentWindow.split(' (')[0];
         queue.forEach(q => {
-          if (q.counter_window.includes(currentWindow.split(' - ')[0]) && q.status === 'Serving') {
+          if (q.counter_window.includes(windowBase) && q.status === 'Serving') {
             q.status = 'Completed';
           }
         });
         const target = queue.find(q => q.queue_id === queueId);
         if (target) {
           target.status = 'Serving';
-          target.counter_window = currentWindow;
+          target.counter_window = windowBase;
           setQueue(queue);
           window.playQueueChime();
           renderTerminal();
@@ -243,17 +248,17 @@
       // Call Next
       $('#btnCallNext').onclick = () => {
         const currentWindow = selWindow.value;
+        const windowBase = currentWindow.split(' (')[0];
         const queue = getQueue();
-        // Mark current serving as completed
         queue.forEach(q => {
-          if (q.counter_window.includes(currentWindow.split(' - ')[0]) && q.status === 'Serving') {
+          if (q.counter_window.includes(windowBase) && q.status === 'Serving') {
             q.status = 'Completed';
           }
         });
 
         // Find next waiting (sorted: booked first)
         const next = queue
-          .filter(q => q.status === 'Waiting' && (q.counter_window.includes(currentWindow.split(' - ')[0]) || q.counter_window === currentWindow))
+          .filter(q => q.status === 'Waiting' && (q.counter_window.includes(windowBase) || q.counter_window === currentWindow))
           .sort((a, b) => {
             if (a.priority_type.includes('Booked') && !b.priority_type.includes('Booked')) return -1;
             if (!a.priority_type.includes('Booked') && b.priority_type.includes('Booked')) return 1;
@@ -262,12 +267,12 @@
 
         if (next) {
           next.status = 'Serving';
-          next.counter_window = currentWindow;
+          next.counter_window = windowBase;
           setQueue(queue);
           window.playQueueChime();
           renderTerminal();
         } else {
-          alert('No more students waiting in queue for ' + currentWindow);
+          alert('No more students waiting in queue for ' + windowBase);
         }
       };
 
@@ -283,8 +288,9 @@
       // Complete & Advance Student
       $('#btnCompleteAdvance').onclick = () => {
         const currentWindow = selWindow.value;
+        const windowBase = currentWindow.split(' (')[0];
         const queue = getQueue();
-        const serving = queue.find(q => q.counter_window.includes(currentWindow.split(' - ')[0]) && q.status === 'Serving');
+        const serving = queue.find(q => q.counter_window.includes(windowBase) && q.status === 'Serving');
         if (!serving) {
           alert('No student is currently serving at this window.');
           return;
@@ -293,8 +299,11 @@
         serving.status = 'Completed';
         setQueue(queue);
 
-        // Advance student progress
-        const stepNum = currentWindow.includes('Advising') ? 2 : currentWindow.includes('Registrar') ? 3 : 4;
+        // Step numbers: 2 = Clinic, 3 = SAO, 4 = Library, 5 = Cashier, 6 = Registrar
+        const stepNum = windowBase.includes('Clinic') ? 2 :
+                        windowBase.includes('SAO') ? 3 :
+                        windowBase.includes('Library') ? 4 :
+                        windowBase.includes('Cashier') ? 5 : 6;
         const nextStep = stepNum + 1;
         const progress = getProgress();
 
@@ -305,15 +314,16 @@
         if (nxtProg && nxtProg.status === 'locked') nxtProg.status = 'ready_to_book';
 
         setProgress(progress);
-        alert(`Step ${stepNum} marked COMPLETED for ${serving.student_name}! Step ${nextStep} is now UNLOCKED.`);
+        alert(`Step ${stepNum} marked COMPLETED for ${serving.student_name}. ${nextStep <= 6 ? 'Step ' + nextStep + ' is now UNLOCKED.' : 'Enrollment is fully completed!'}`);
         renderTerminal();
       };
 
       // Put on Hold
       $('#btnPutHold').onclick = () => {
         const currentWindow = selWindow.value;
+        const windowBase = currentWindow.split(' (')[0];
         const queue = getQueue();
-        const serving = queue.find(q => q.counter_window.includes(currentWindow.split(' - ')[0]) && q.status === 'Serving');
+        const serving = queue.find(q => q.counter_window.includes(windowBase) && q.status === 'Serving');
         if (!serving) return;
         serving.status = 'Hold';
         setQueue(queue);
@@ -326,17 +336,25 @@
         const name = $('#walkinName').value.trim();
         if (!name) return alert('Enter student name');
         const currentWindow = selWindow.value;
+        const windowBase = currentWindow.split(' (')[0];
         const queue = getQueue();
-        const prefix = currentWindow.includes('Advising') ? 'ADV' : currentWindow.includes('Registrar') ? 'REG' : 'CSH';
+        const prefix = windowBase.includes('Clinic') ? 'CLN' :
+                       windowBase.includes('SAO') ? 'SAO' :
+                       windowBase.includes('Library') ? 'LIB' :
+                       windowBase.includes('Cashier') ? 'CSH' : 'REG';
         const num = `${prefix}-${String(Math.floor(Math.random() * 80) + 20).padStart(3, '0')}`;
+        const step = windowBase.includes('Clinic') ? 2 :
+                     windowBase.includes('SAO') ? 3 :
+                     windowBase.includes('Library') ? 4 :
+                     windowBase.includes('Cashier') ? 5 : 6;
 
         queue.push({
           queue_id: 'q' + Date.now(),
           ticket_number: num,
-          student_id: 'WALKIN-' + Date.now().toString().slice(-4),
+          student_id: '8240' + String(Math.floor(Math.random() * 800) + 100),
           student_name: name,
-          step_number: currentWindow.includes('Advising') ? 2 : 3,
-          counter_window: currentWindow,
+          step_number: step,
+          counter_window: windowBase,
           priority_type: 'Regular Walk-In',
           status: 'Waiting',
           estimated_wait_mins: 15,
@@ -365,4 +383,3 @@
   </script>
 </body>
 </html>
-
