@@ -2,7 +2,11 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#1d4ed8">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <title>EnrollEase - Staff Queue Terminal</title>
   <link rel="stylesheet" href="css/style.css">
 </head>
@@ -99,22 +103,24 @@
           <span class="badge p" id="txtQueueCount">0 Waiting</span>
         </div>
 
-        <table class="data-table">
-          <thead>
-            <tr>
-              <th>Ticket #</th>
-              <th>Student Name</th>
-              <th>Priority Lane</th>
-              <th>Window</th>
-              <th>Est. Wait</th>
-              <th>Status</th>
-              <th>Action</th>
-            </tr>
-          </thead>
-          <tbody id="queueTbody">
-            <!-- Dynamically populated -->
-          </tbody>
-        </table>
+        <div class="table-responsive">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Ticket #</th>
+                <th>Student Name</th>
+                <th>Priority Lane</th>
+                <th>Window</th>
+                <th>Est. Wait</th>
+                <th>Status</th>
+                <th>Action</th>
+              </tr>
+            </thead>
+            <tbody id="queueTbody">
+              <!-- Dynamically populated -->
+            </tbody>
+          </table>
+        </div>
       </div>
 
     </div>

@@ -416,6 +416,9 @@
           const myTicket = queue.find(q => q.student_id === mySid);
           if (myTicket && myTicket.status === 'Serving') {
             window.playQueueChime();
+            if ('vibrate' in navigator) {
+              try { navigator.vibrate([300, 150, 300, 150, 400]); } catch (e) {}
+            }
             toast('Your Ticket ' + myTicket.ticket_number + ' is NOW SERVING at ' + myTicket.counter_window + '!');
           }
         }
@@ -510,6 +513,10 @@
   ];
 
   function shell(contentHtml, activePage) {
+    const student = DAL.currentStudent();
+    const queue = DAL.get('queue');
+    const myTicket = queue.find(q => q.student_id === student.student_id && (q.status === 'Waiting' || q.status === 'Serving' || q.status === 'Hold'));
+
     return `
       <div class="shell">
         <aside class="side" id="sideNav">
@@ -532,11 +539,49 @@
         <main class="main">
           <div class="top-bar-mobile">
             <button class="burger" id="burgerBtn" aria-label="Toggle Menu"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg></button>
-            <div class="logo">Enroll<span>Ease</span></div>
+            <div class="logo" style="font-size: 22px;">Enroll<span>Ease</span></div>
+            <a href="settings.html" style="color: var(--b); display: flex; align-items: center; justify-content: center; width: 38px; height: 38px; border-radius: 10px; background: var(--bg); text-decoration: none;">
+              ${ICONS.settings}
+            </a>
           </div>
           ${demoBarHtml()}
+          ${myTicket ? `
+            <div class="mobile-queue-pill">
+              <div class="mobile-queue-pill-left">
+                <span class="pulse-dot"></span>
+                <span class="mobile-queue-pill-num">${myTicket.ticket_number}</span>
+                <span class="mobile-queue-pill-window">${myTicket.counter_window}</span>
+              </div>
+              <div class="mobile-queue-pill-right">
+                <span class="mobile-queue-pill-status">${myTicket.status.toUpperCase()}</span>
+                <a href="my-schedule.html" class="mobile-queue-pill-link">Pass &rarr;</a>
+              </div>
+            </div>
+          ` : ''}
           ${contentHtml}
         </main>
+        <nav class="mobile-bottom-bar" id="mobileBottomBar">
+          <a href="dashboard.html" class="mob-nav-item ${activePage === 'dashboard' ? 'active' : ''}">
+            ${ICONS.dashboard}
+            <span>Home</span>
+          </a>
+          <a href="book-appointment.html" class="mob-nav-item ${activePage === 'book-appointment' ? 'active' : ''}">
+            ${ICONS.calendar}
+            <span>Book</span>
+          </a>
+          <a href="my-schedule.html" class="mob-nav-item ${activePage === 'my-schedule' ? 'active' : ''}">
+            ${ICONS.clock}
+            <span>Schedule</span>
+          </a>
+          <a href="enrollment.html" class="mob-nav-item ${activePage === 'enrollment' ? 'active' : ''}">
+            ${ICONS.academic}
+            <span>Status</span>
+          </a>
+          <a href="profile.html" class="mob-nav-item ${activePage === 'profile' || activePage === 'settings' ? 'active' : ''}">
+            ${ICONS.user}
+            <span>Profile</span>
+          </a>
+        </nav>
       </div>
     `;
   }
@@ -1512,34 +1557,36 @@
         <div class="card" style="margin-bottom: 24px;">
           <h3>University Office Clearance Checklist</h3>
           <p class="muted" style="margin-bottom: 12px;">Live records pulled from University ERP Database</p>
-          <table class="data-table">
-            <thead>
-              <tr>
-                <th>Office Code</th>
-                <th>Office Name</th>
-                <th>Location / Room</th>
-                <th>Status</th>
-                <th>Remarks / Action Needed</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${clearances.map(c => `
+          <div class="table-responsive">
+            <table class="data-table">
+              <thead>
                 <tr>
-                  <td><b>${c.office_code}</b></td>
-                  <td>${c.office_name}</td>
-                  <td class="muted">${c.location_room}</td>
-                  <td>
-                    <span class="badge ${c.status === 'Cleared' ? '' : 'd'}">
-                      ${c.status === 'Cleared' ? 'Cleared' : c.status}
-                    </span>
-                  </td>
-                  <td style="color: ${c.status === 'Hold' ? 'var(--er)' : 'inherit'}; font-weight: ${c.status === 'Hold' ? '600' : 'normal'};">
-                    ${c.remarks || 'None'}
-                  </td>
+                  <th>Office Code</th>
+                  <th>Office Name</th>
+                  <th>Location / Room</th>
+                  <th>Status</th>
+                  <th>Remarks / Action Needed</th>
                 </tr>
-              `).join('')}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                ${clearances.map(c => `
+                  <tr>
+                    <td><b>${c.office_code}</b></td>
+                    <td>${c.office_name}</td>
+                    <td class="muted">${c.location_room}</td>
+                    <td>
+                      <span class="badge ${c.status === 'Cleared' ? '' : 'd'}">
+                        ${c.status === 'Cleared' ? 'Cleared' : c.status}
+                      </span>
+                    </td>
+                    <td style="color: ${c.status === 'Hold' ? 'var(--er)' : 'inherit'}; font-weight: ${c.status === 'Hold' ? '600' : 'normal'};">
+                      ${c.remarks || 'None'}
+                    </td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          </div>
         </div>
 
         <!-- Advised Curriculum Subjects Table (Includes PC 316) -->
@@ -1554,35 +1601,37 @@
             </div>
           </div>
 
-          <table class="data-table">
-            <thead>
-              <tr>
-                <th>Subject Code</th>
-                <th>Descriptive Title</th>
-                <th>Units</th>
-                <th>Schedule Block</th>
-                <th>Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${subjects.map(s => `
-                <tr style="${s.subject_code === 'PC 316' ? 'background: rgba(29, 78, 216, 0.05);' : ''}">
-                  <td>
-                    <b>${s.subject_code}</b>
-                    ${s.subject_code === 'PC 316' ? '<span class="badge p" style="margin-left: 6px; font-size: 10px;">Course Project</span>' : ''}
-                  </td>
-                  <td>${s.descriptive_title}</td>
-                  <td><b>${s.units}</b></td>
-                  <td class="muted">${s.schedule_block}</td>
-                  <td>
-                    <span class="badge ${s.is_advised ? '' : 'w'}">
-                      ${s.is_advised ? 'Advised & Locked' : 'Pending Advising'}
-                    </span>
-                  </td>
+          <div class="table-responsive">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Subject Code</th>
+                  <th>Descriptive Title</th>
+                  <th>Units</th>
+                  <th>Schedule Block</th>
+                  <th>Status</th>
                 </tr>
-              `).join('')}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                ${subjects.map(s => `
+                  <tr style="${s.subject_code === 'PC 316' ? 'background: rgba(29, 78, 216, 0.05);' : ''}">
+                    <td>
+                      <b>${s.subject_code}</b>
+                      ${s.subject_code === 'PC 316' ? '<span class="badge p" style="margin-left: 6px; font-size: 10px;">Course Project</span>' : ''}
+                    </td>
+                    <td>${s.descriptive_title}</td>
+                    <td><b>${s.units}</b></td>
+                    <td class="muted">${s.schedule_block}</td>
+                    <td>
+                      <span class="badge ${s.is_advised ? '' : 'w'}">
+                        ${s.is_advised ? 'Advised & Locked' : 'Pending Advising'}
+                      </span>
+                    </td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          </div>
         </div>
       `, 'enrollment');
     }
@@ -1716,7 +1765,10 @@
     init() {
       $('#btnTestChime').onclick = () => {
         window.playQueueChime();
-        toast('Playing live queue notification bell');
+        if ('vibrate' in navigator) {
+          try { navigator.vibrate([200, 100, 200]); } catch (e) {}
+        }
+        toast('Playing live queue chime and phone vibration');
       };
 
       $('#setJuan').onclick = () => {
